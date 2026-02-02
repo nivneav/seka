@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seka - Premium Online Card Game</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #080b12;
+            --bg-secondary: #0d1117;
+            --bg-tertiary: #151b28;
+            --glass-bg: rgba(18, 24, 38, 0.8);
+            --glass-border: rgba(255, 255, 255, 0.06);
+            --glass-border-light: rgba(255, 255, 255, 0.12);
+            --text-primary: #ffffff;
+            --text-secondary: #8b95a8;
+            --text-muted: #525c6e;
+            --accent-orange: #f59e0b;
+            --accent-gold: #fbbf24;
+            --accent-purple: #8b5cf6;
+            --accent-blue: #3b82f6;
+            --accent-red: #ef4444;
+            --accent-green: #10b981;
+            --accent-cyan: #06b6d4;
+            --glow-orange: rgba(245, 158, 11, 0.5);
+            --glow-purple: rgba(139, 92, 246, 0.5);
+            --glow-blue: rgba(59, 130, 246, 0.5);
+            --glow-green: rgba(16, 185, 129, 0.5);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        /* Ambient Background */
+        .ambient-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .ambient-orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(150px);
+            opacity: 0.15;
+            animation: float 20s ease-in-out infinite;
+        }
+
+        .orb-1 {
+            width: 600px;
+            height: 600px;
+            background: var(--accent-purple);
+            top: -200px;
+            right: 5%;
+            animation-delay: 0s;
+        }
+
+        .orb-2 {
+            width: 500px;
+            height: 500px;
+            background: var(--accent-orange);
+            bottom: -100px;
+            left: -100px;
+            animation-delay: -5s;
+        }
+
+        .orb-3 {
+            width: 400px;
+            height: 400px;
+            background: var(--accent-blue);
+            top: 40%;
+            right: -100px;
+            animation-delay: -10s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            25% { transform: translate(30px, -30px) scale(1.05); }
+            50% { transform: translate(-20px, 20px) scale(0.95); }
+            75% { transform: translate(20px, 10px) scale(1.02); }
+        }
+
+        /* Header */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            padding: 20px 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.3s ease;
+        }
+
+        .header.scrolled {
+            background: rgba(8, 11, 18, 0.95);
+            backdrop-filter: blur(20px);
+            padding: 15px 60px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--accent-orange) 0%, var(--accent-red) 100%);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            box-shadow: 0 0 30px var(--glow-orange);
+            transition: all 0.3s ease;
+        }
+
+        .logo:hover .logo-icon {
+            transform: rotate(-5deg) scale(1.05);
+        }
+
+        .logo-text {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text-primary);
+            letter-spacing: -1px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 12px 28px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-ghost {
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--text-secondary);
+        }
+
+        .btn-ghost:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--glass-border-light);
+            color: var(--text-primary);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--accent-purple);
+            background: rgba(139, 92, 246, 0.1);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-orange) 0%, var(--accent-red) 100%);
+            border: none;
+            color: white;
+            box-shadow: 0 4px 20px var(--glow-orange);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px var(--glow-orange);
+        }
+
+        /* Hero Section */
+        .hero {
+            position: relative;
+            z-index: 1;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 120px 60px 80px;
+        }
+
+        .hero-content {
+            text-align: center;
+            max-width: 900px;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(139, 92, 246, 0.15);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 50px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--accent-purple);
+            margin-bottom: 32px;
+            animation: fadeInUp 0.8s ease;
+        }
+
+        .hero-badge i {
+            font-size: 11px;
+        }
+
+        .hero-title {
+            font-size: 72px;
+            font-weight: 900;
+            line-height: 1.05;
+            margin-bottom: 24px;
+            animation: fadeInUp 0.8s ease 0.1s both;
+        }
+
+        .hero-title span {
+            background: linear-gradient(135deg, var(--accent-orange) 0%, var(--accent-gold) 50%, var(--accent-orange) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-subtitle {
+            font-size: 20px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 48px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            animation: fadeInUp 0.8s ease 0.2s both;
+        }
+
+        .hero-actions {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            margin-bottom: 64px;
+            animation: fadeInUp 0.8s ease 0.3s both;
+        }
+
+        .btn-large {
+            padding: 18px 40px;
+            font-size: 16px;
+            border-radius: 14px;
+        }
+
+        .hero-stats {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 60px;
+            animation: fadeInUp 0.8s ease 0.4s both;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 36px;
+            font-weight: 800;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .stat-value span {
+            color: var(--accent-orange);
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Floating Cards */
+        .floating-cards {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .floating-card {
+            position: absolute;
+            width: 80px;
+            height: 112px;
+            background: linear-gradient(135deg, #ffffff 0%, #e8e8e8 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            animation: floatCard 6s ease-in-out infinite;
+        
+            color: #000; /* Add this line to make black symbols actually black */
+        }
+
+        .floating-card:nth-child(1) {
+            top: 15%;
+            left: 8%;
+            transform: rotate(-15deg);
+            animation-delay: 0s;
+        }
+
+        .floating-card:nth-child(2) {
+            top: 20%;
+            right: 10%;
+            transform: rotate(12deg);
+            animation-delay: -1s;
+        }
+
+        .floating-card:nth-child(3) {
+            bottom: 25%;
+            left: 12%;
+            transform: rotate(8deg);
+            animation-delay: -2s;
+        }
+
+        .floating-card:nth-child(4) {
+            bottom: 20%;
+            right: 8%;
+            transform: rotate(-10deg);
+            animation-delay: -3s;
+        }
+
+        @keyframes floatCard {
+            0%, 100% { transform: translateY(0) rotate(var(--rotate, 0deg)); }
+            50% { transform: translateY(-20px) rotate(var(--rotate, 0deg)); }
+        }
+
+        /* Features Section */
+        .features {
+            position: relative;
+            z-index: 1;
+            padding: 100px 60px;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .section-title {
+            font-size: 42px;
+            font-weight: 800;
+            margin-bottom: 16px;
+        }
+
+        .section-subtitle {
+            font-size: 16px;
+            color: var(--text-secondary);
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .feature-card {
+            padding: 36px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            transition: all 0.4s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-8px);
+            border-color: var(--glass-border-light);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .feature-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin-bottom: 24px;
+        }
+
+        .feature-icon.orange {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(245, 158, 11, 0.05) 100%);
+            color: var(--accent-orange);
+            box-shadow: 0 0 30px var(--glow-orange);
+        }
+
+        .feature-icon.purple {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(139, 92, 246, 0.05) 100%);
+            color: var(--accent-purple);
+            box-shadow: 0 0 30px var(--glow-purple);
+        }
+
+        .feature-icon.blue {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(59, 130, 246, 0.05) 100%);
+            color: var(--accent-blue);
+            box-shadow: 0 0 30px var(--glow-blue);
+        }
+
+        .feature-card h3 {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .feature-card p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* Game Modes */
+        .game-modes {
+            position: relative;
+            z-index: 1;
+            padding: 100px 60px;
+        }
+
+        .modes-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .mode-card {
+            padding: 40px 32px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            text-align: center;
+            transition: all 0.4s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .mode-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            border-radius: 24px 24px 0 0;
+        }
+
+        .mode-card.classic::before {
+            background: linear-gradient(90deg, var(--accent-green) 0%, var(--accent-cyan) 100%);
+        }
+
+        .mode-card.turbo::before {
+            background: linear-gradient(90deg, var(--accent-orange) 0%, var(--accent-red) 100%);
+        }
+
+        .mode-card.tournament::before {
+            background: linear-gradient(90deg, var(--accent-purple) 0%, var(--accent-blue) 100%);
+        }
+
+        .mode-card.classic {
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .mode-card.turbo {
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+
+        .mode-card.tournament {
+            border: 1px solid rgba(139, 92, 246, 0.2);
+        }
+
+        .mode-card:hover {
+            transform: translateY(-8px) scale(1.02);
+        }
+
+        .mode-card.classic:hover {
+            box-shadow: 0 20px 60px rgba(16, 185, 129, 0.2);
+        }
+
+        .mode-card.turbo:hover {
+            box-shadow: 0 20px 60px rgba(245, 158, 11, 0.2);
+        }
+
+        .mode-card.tournament:hover {
+            box-shadow: 0 20px 60px rgba(139, 92, 246, 0.2);
+        }
+
+        .mode-icon {
+            width: 80px;
+            height: 80px;
+            border-radius: 20px;
+            margin: 0 auto 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+        }
+
+        .mode-card.classic .mode-icon {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(16, 185, 129, 0.1) 100%);
+            box-shadow: 0 0 40px rgba(16, 185, 129, 0.4);
+        }
+
+        .mode-card.turbo .mode-icon {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(245, 158, 11, 0.1) 100%);
+            box-shadow: 0 0 40px rgba(245, 158, 11, 0.4);
+        }
+
+        .mode-card.tournament .mode-icon {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.25) 0%, rgba(139, 92, 246, 0.1) 100%);
+            box-shadow: 0 0 40px rgba(139, 92, 246, 0.4);
+        }
+
+        .mode-card h3 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .mode-card .mode-desc {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+        }
+
+        .mode-features {
+            text-align: left;
+            margin-bottom: 28px;
+        }
+
+        .mode-features li {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            padding: 8px 0;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .mode-features li:last-child {
+            border-bottom: none;
+        }
+
+        .mode-features li i {
+            font-size: 10px;
+        }
+
+        .mode-card.classic .mode-features li i {
+            color: var(--accent-green);
+        }
+
+        .mode-card.turbo .mode-features li i {
+            color: var(--accent-orange);
+        }
+
+        .mode-card.tournament .mode-features li i {
+            color: var(--accent-purple);
+        }
+
+        /* CTA Section */
+        .cta-section {
+            position: relative;
+            z-index: 1;
+            padding: 100px 60px;
+            text-align: center;
+        }
+
+        .cta-box {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 60px;
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(59, 130, 246, 0.1) 100%);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            border-radius: 32px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cta-box::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
+            animation: rotate 20s linear infinite;
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .cta-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .cta-title {
+            font-size: 36px;
+            font-weight: 800;
+            margin-bottom: 16px;
+        }
+
+        .cta-desc {
+            font-size: 16px;
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+        }
+
+        /* Footer */
+        .landing-footer {
+            position: relative;
+            z-index: 1;
+            padding: 40px 60px;
+            border-top: 1px solid var(--glass-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .footer-left {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+        }
+
+        .footer-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+        }
+
+        .footer-logo .logo-icon {
+            width: 36px;
+            height: 36px;
+            font-size: 16px;
+        }
+
+        .footer-logo .logo-text {
+            font-size: 20px;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 24px;
+        }
+
+        .footer-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 13px;
+            transition: color 0.2s ease;
+        }
+
+        .footer-link:hover {
+            color: var(--text-secondary);
+        }
+
+        .footer-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .virtual-badge {
+            padding: 6px 12px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 6px;
+            font-size: 11px;
+            color: var(--accent-green);
+        }
+
+        .copyright {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            width: 100%;
+            max-width: 440px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 40px;
+            transform: scale(0.9) translateY(20px);
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.active .modal {
+            transform: scale(1) translateY(0);
+        }
+
+        .modal-header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .modal-logo {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, var(--accent-orange) 0%, var(--accent-red) 100%);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin: 0 auto 20px;
+            box-shadow: 0 0 40px var(--glow-orange);
+        }
+
+        .modal-title {
+            font-size: 26px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .modal-subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            border: none;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 14px 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-size: 15px;
+            font-family: inherit;
+            transition: all 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-purple);
+            background: rgba(139, 92, 246, 0.05);
+            box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .form-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--accent-orange) 0%, var(--accent-red) 100%);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 8px;
+        }
+
+        .form-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px var(--glow-orange);
+        }
+
+        .form-divider {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin: 24px 0;
+        }
+
+        .form-divider::before,
+        .form-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--glass-border);
+        }
+
+        .form-divider span {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .social-login {
+            display: flex;
+            gap: 12px;
+        }
+
+        .social-btn {
+            flex: 1;
+            padding: 14px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            color: var(--text-secondary);
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .social-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--glass-border-light);
+            color: var(--text-primary);
+        }
+
+        .form-footer {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .form-footer a {
+            color: var(--accent-orange);
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.2s ease;
+        }
+
+        .form-footer a:hover {
+            color: var(--accent-gold);
+        }
+
+        .modal-tabs {
+            display: flex;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            padding: 4px;
+            margin-bottom: 28px;
+        }
+
+        .modal-tab {
+            flex: 1;
+            padding: 12px;
+            background: transparent;
+            border: none;
+            border-radius: 10px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .modal-tab.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .checkbox-group input {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent-orange);
+        }
+
+        .checkbox-group label {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .checkbox-group a {
+            color: var(--accent-purple);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Ambient Background -->
+    <div class="ambient-bg">
+        <div class="ambient-orb orb-1"></div>
+        <div class="ambient-orb orb-2"></div>
+        <div class="ambient-orb orb-3"></div>
+    </div>
+
+    <!-- Floating Cards -->
+    <div class="floating-cards">
+        <div class="floating-card" style="--rotate: -15deg; color:000;">&#9824;</div>
+        <div class="floating-card" style="--rotate: 12deg; color: #ef4444;">&#9829;</div>
+        <div class="floating-card" style="--rotate: 8deg; color: #ef4444;">&#9830;</div>
+        <div class="floating-card" style="--rotate: -10deg;">&#9827;</div>
+    </div>
+
+    <!-- Header -->
+    <header class="header" id="header">
+        <a href="#" class="logo">
+            <div class="logo-icon">&#9830;</div>
+            <span class="logo-text">Seka</span>
+        </a>
+        <div class="header-actions">
+            <!--<a href="#features" class="btn btn-ghost">Features</a> -->
+            <!--<a href="#modes" class="btn btn-ghost">Game Modes</a> -->
+            <button class="btn btn-outline" onclick="openModal('login')">Log In</button>
+            <button class="btn btn-primary" onclick="openModal('register')">Play Now</button>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <div class="hero-badge">
+                <i class="fas fa-bolt"></i>
+                New Season Started - Exclusive Rewards
+            </div>
+            <h1 class="hero-title">
+                The Ultimate<br><span>Seka Experience</span>
+            </h1>
+            <p class="hero-subtitle">
+                Join thousands of players in the most thrilling online card game. 
+                Compete, climb the ranks, and become the ultimate Seka champion.
+            </p>
+            <div class="hero-actions">
+                <button class="btn btn-primary btn-large" onclick="openModal('register')">
+                    <i class="fas fa-play"></i>
+                    Start Playing Free
+                </button>
+                <button class="btn btn-outline btn-large" onclick="openModal('login')">
+                    <i class="fas fa-sign-in-alt"></i>
+                    Log In
+                </button>
+            </div>
+            <div class="hero-stats">
+                <div class="stat-item">
+                    <div class="stat-value">50<span>K+</span></div>
+                    <div class="stat-label">Active Players</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">1<span>M+</span></div>
+                    <div class="stat-label">Games Played</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">500<span>+</span></div>
+                    <div class="stat-label">Tables Online</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section 
+    <section class="features" id="features">
+        <div class="section-header">
+            <h2 class="section-title">Why Choose Seka?</h2>
+            <p class="section-subtitle">Experience the most polished and feature-rich online card game platform</p>
+        </div>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon orange">
+                    <i class="fas fa-bolt"></i>
+                </div>
+                <h3>Instant Matchmaking</h3>
+                <p>Find and join tables in seconds. Our smart matchmaking ensures you always have opponents at your skill level.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon purple">
+                    <i class="fas fa-trophy"></i>
+                </div>
+                <h3>Competitive Ranking</h3>
+                <p>Climb through Bronze to Diamond tiers. Earn rewards and showcase your skills on the global leaderboard.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon blue">
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+                <h3>Fair Play Guaranteed</h3>
+                <p>Advanced anti-cheat systems ensure every game is fair. Play with confidence knowing the odds are never rigged.</p>
+            </div>
+        </div>
+    </section>
+
+     Game Modes Section 
+    <section class="game-modes" id="modes">
+        <div class="section-header">
+            <h2 class="section-title">Choose Your Mode</h2>
+            <p class="section-subtitle">Three unique ways to play, each with its own thrill</p>
+        </div>
+        <div class="modes-grid">
+            <div class="mode-card classic">
+                <div class="mode-icon">&#9824;</div>
+                <h3>Classic</h3>
+                <p class="mode-desc">Traditional Seka gameplay at your own pace</p>
+                <ul class="mode-features">
+                    <li><i class="fas fa-check"></i> Standard turn timer</li>
+                    <li><i class="fas fa-check"></i> 2-6 players per table</li>
+                    <li><i class="fas fa-check"></i> All stake levels</li>
+                    <li><i class="fas fa-check"></i> Private tables available</li>
+                </ul>
+                <button class="btn btn-primary" onclick="openModal('register')">Play Classic</button>
+            </div>
+            <div class="mode-card turbo">
+                <div class="mode-icon">&#9829;</div>
+                <h3>Turbo</h3>
+                <p class="mode-desc">Fast-paced action for experienced players</p>
+                <ul class="mode-features">
+                    <li><i class="fas fa-check"></i> 50% faster turns</li>
+                    <li><i class="fas fa-check"></i> Higher chip rewards</li>
+                    <li><i class="fas fa-check"></i> Bonus XP multiplier</li>
+                    <li><i class="fas fa-check"></i> Quick rematch option</li>
+                </ul>
+                <button class="btn btn-primary" onclick="openModal('register')">Play Turbo</button>
+            </div>
+            <div class="mode-card tournament">
+                <div class="mode-icon">&#9830;</div>
+                <h3>Tournament</h3>
+                <p class="mode-desc">Compete for glory and massive prizes</p>
+                <ul class="mode-features">
+                    <li><i class="fas fa-check"></i> Scheduled events</li>
+                    <li><i class="fas fa-check"></i> Prize pool rewards</li>
+                    <li><i class="fas fa-check"></i> Leaderboard rankings</li>
+                    <li><i class="fas fa-check"></i> Exclusive trophies</li>
+                </ul>
+                <button class="btn btn-primary" onclick="openModal('register')">View Tournaments</button>
+            </div>
+        </div>
+    </section>
+
+     CTA Section 
+    <section class="cta-section">
+        <div class="cta-box">
+            <div class="cta-content">
+                <h2 class="cta-title">Ready to Play?</h2>
+                <p class="cta-desc">Join now and receive 10,000 free chips to start your journey</p>
+                <button class="btn btn-primary btn-large" onclick="openModal('register')">
+                    <i class="fas fa-gift"></i>
+                    Claim Your Bonus
+                </button>
+            </div>
+        </div>
+    </section>
+
+
+    <footer class="landing-footer">
+        <div class="footer-left">
+            <a href="#" class="footer-logo">
+                <div class="logo-icon">&#9830;</div>
+                <span class="logo-text">Seka</span>
+            </a>
+            <div class="footer-links">
+                <a href="#" class="footer-link">About</a>
+                <a href="#" class="footer-link">Terms</a>
+                <a href="#" class="footer-link">Privacy</a>
+                <a href="#" class="footer-link">Support</a>
+            </div>
+        </div>
+        <div class="footer-right">
+            <span class="virtual-badge">Virtual Chips Only</span>
+            <span class="copyright">2025 Seka. All rights reserved.</span>
+        </div>
+    </footer> 
+    -->
+
+    <!-- Auth Modal -->
+    <div class="modal-overlay" id="authModal">
+        <div class="modal" style="position: relative;">
+            <button class="modal-close" onclick="closeModal()">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="modal-header">
+                <div class="modal-logo">&#9830;</div>
+                <h2 class="modal-title">Welcome to Seka</h2>
+                <p class="modal-subtitle">Sign in or create an account to play</p>
+            </div>
+
+            <div class="modal-tabs">
+                <button class="modal-tab active" data-tab="login" onclick="switchTab('login')">Log In</button>
+                <button class="modal-tab" data-tab="register" onclick="switchTab('register')">Sign Up</button>
+            </div>
+
+            <!-- Login Form -->
+            <div class="tab-content active" id="loginTab">
+                <form onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label class="form-label">Email or Username</label>
+                        <input type="text" class="form-input" placeholder="Enter your email or username" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-input" placeholder="Enter your password" required>
+                    </div>
+                    <button type="submit" class="form-btn">Log In</button>
+                </form>
+                
+                <p class="form-footer">
+                    Don't have an account? <a href="#" onclick="switchTab('register')">Sign up</a>
+                </p>
+            </div>
+
+            <!-- Register Form -->
+            <div class="tab-content" id="registerTab">
+                <form onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label class="form-label">Username</label>
+                        <input type="text" class="form-input" placeholder="Choose a username" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-input" placeholder="Enter your email" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-input" placeholder="Create a password" required>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="terms" required>
+                        <label for="terms">I agree to the <a href="#">Terms of Service</a></label>
+                    </div>
+                    <button type="submit" class="form-btn">Create Account</button>
+                </form>
+
+                <p class="form-footer">
+                    Already have an account? <a href="#" onclick="switchTab('login')">Log in</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Header scroll effect
+        window.addEventListener('scroll', () => {
+            const header = document.getElementById('header');
+            if (window.scrollY > 50) {
+                header.classList.add('scrolled');
+            } else {
+                header.classList.remove('scrolled');
+            }
+        });
+
+        // Modal functions
+        function openModal(tab = 'login') {
+            const modal = document.getElementById('authModal');
+            modal.classList.add('active');
+            switchTab(tab);
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('authModal');
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        function switchTab(tab) {
+            // Update tabs
+            document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.modal-tab[data-tab="${tab}"]`).classList.add('active');
+
+            // Update content
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(tab + 'Tab').classList.add('active');
+        }
+
+        // Close modal on overlay click
+        document.getElementById('authModal').addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-overlay')) {
+                closeModal();
+            }
+        });
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        // Form handlers
+        function handleLogin(e) {
+            e.preventDefault();
+            // Redirect to lobby
+            window.location.href = 'poker-lobby.html';
+        }
+
+        function handleRegister(e) {
+            e.preventDefault();
+            // Redirect to lobby
+            window.location.href = 'poker-lobby.html';
+        }
+
+        // Smooth scroll for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
+                const href = this.getAttribute('href');
+                if (href !== '#') {
+                    e.preventDefault();
+                    const target = document.querySelector(href);
+                    if (target) {
+                        target.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>

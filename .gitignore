@@ -1,0 +1,16 @@
+.env
+backend/node_modules/
+backend/.env
+backend/package-lock.json
+backend/logs/
+*.log
+*.bak
+*.tmp
+index1.html
+.DS_Store
+Thumbs.db
+*.pem
+mysql/*.sql
+.vscode/
+.idea/
+nginx/certs/

@@ -1,0 +1,4 @@
+1. De pus bine la punct backenul
+2. de configurat 2 VPS-uri
+3. de facut frontendul
+4 beta testing

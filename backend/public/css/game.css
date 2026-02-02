@@ -1,0 +1,426 @@
+
+    /* =========================================
+       1. VARIABILE & CONFIGURĂRI GLOBALE
+       ========================================= */
+    :root {
+        /* -- Culori Fundal & Masă -- */
+        --bg-dark: #050608;
+        --bg-radial: radial-gradient(circle at 50% 50%, #151925 0%, #050608 100%);
+        --table-felt: #202736;
+        --table-border: #0e1116;
+        
+        /* -- Culori Accent -- */
+        --accent-green: #10b981;
+        --accent-red: #ef4444;
+        --accent-blue: #3b82f6;
+        --accent-gold: #fbbf24;
+        --brand-secondary: #3b82f6; /* Folosit în noul chat */
+
+        /* -- Text & Sticlă -- */
+        --text-white: #ffffff;
+        --text-gray: #94a3b8;
+        --glass-bg: rgba(255, 255, 255, 0.05);
+        --glass-border: rgba(255, 255, 255, 0.1);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+        background: var(--bg-radial);
+        margin: 0; height: 100vh; overflow: hidden;
+        font-family: 'Manrope', sans-serif; color: var(--text-white);
+        display: flex; flex-direction: column; user-select: none;
+    }
+
+    /* =========================================
+       2. LAYOUT MASĂ & ELEMENTE CENTRALE
+       ========================================= */
+    #game-area {
+        flex: 1; display: flex; justify-content: center; align-items: center;
+        perspective: 1400px; position: relative;
+    }
+
+    .poker-table {
+        width: 960px; height: 480px;
+        background: var(--table-felt);
+        border-radius: 240px;
+        position: relative;
+        border: 14px solid var(--table-border);
+        box-shadow: 0 50px 120px rgba(0,0,0,0.9);
+        z-index: 5;
+        transition: all 0.8s ease;
+    }
+
+    .table-line {
+        position: absolute; top: 35px; bottom: 35px; left: 35px; right: 35px;
+        border: 1px solid rgba(255,255,255,0.03);
+        border-radius: 210px; pointer-events: none;
+    }
+
+    /* --- Zona Centrală (Pot) --- */
+    .center-area {
+        position: absolute; top: 46%; left: 50%; transform: translate(-50%, -50%);
+        text-align: center; z-index: 5;
+        display: flex; flex-direction: column; align-items: center; gap: 5px;
+    }
+
+    .pot-wrapper {
+        display: flex; align-items: center; gap: 8px;
+        background: rgba(0,0,0,0.3); padding: 8px 16px; border-radius: 30px;
+        border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .center-chip-icon {
+        width: 28px; height: 28px;
+        background: radial-gradient(circle at 30% 30%, #fbbf24, #b45309);
+        border-radius: 50%; border: 2px dashed rgba(255,255,255,0.4);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+    }
+
+    .pot-val {
+        font-size: 32px; font-weight: 800; color: var(--accent-gold);
+        text-shadow: 0 0 30px rgba(251, 191, 36, 0.3);
+    }
+
+    #game-status-text {
+        font-size: 11px; color: var(--text-gray); font-weight: 700;
+        letter-spacing: 1px; text-transform: uppercase; margin-top: 5px;
+    }
+
+    /* =========================================
+       3. SCAUNE & AVATARE (MOCKUP STYLE)
+       ========================================= */
+    .seat {
+        position: absolute; width: 100px; height: 140px;
+        display: flex; flex-direction: column; align-items: center;
+        transition: all 0.5s;
+    }
+
+    /* Poziționare */
+    .seat[data-pos="0"] { bottom: -55px; left: 50%; transform: translateX(-50%); z-index: 100; scale: 1.15; }
+    .seat[data-pos="1"] { bottom: 5px; left: 12%; }
+    .seat[data-pos="2"] { top: 20%; left: -60px; }
+    .seat[data-pos="3"] { top: -75px; left: 28%; }
+    .seat[data-pos="4"] { top: -75px; right: 28%; }
+    .seat[data-pos="5"] { top: 20%; right: -60px; }
+    .seat[data-pos="6"] { bottom: 5px; right: 12%; }
+
+    .seat.folded { opacity: 0.5; filter: grayscale(100%); transform: scale(0.95); pointer-events: none; }
+
+    /* Empty Seat (Cerc punctat subțire) */
+    .seat.empty-seat {
+        width: 74px; height: 74px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.02);
+        border: 2px dashed rgba(255, 255, 255, 0.15);
+        display: flex; justify-content: center; align-items: center;
+        cursor: pointer; transition: all 0.3s ease;
+    }
+    .seat.empty-seat:hover {
+        border-color: rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.05);
+    }
+    .seat.empty-seat::after {
+        content: '+'; color: rgba(255,255,255,0.3); font-size: 28px; font-weight: 200;
+    }
+
+    /* Avatar Container */
+    .avatar-container {
+        position: relative; width: 74px; height: 74px; padding: 4px;
+        background: #1e293b; border-radius: 50%;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+        z-index: 30; transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        cursor: pointer;
+    }
+    .avatar-img {
+        width: 100%; height: 100%; border-radius: 50%;
+        object-fit: cover; background: #0f172a; display: block;
+        box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+    }
+
+    .seat.active .avatar-container {
+        transform: scale(1.1); box-shadow: 0 0 30px rgba(16, 185, 129, 0.3);
+    }
+    
+    /* Winner Animation */
+    .seat.winner { z-index: 300 !important; }
+    .seat.winner .avatar-container {
+        transform: scale(1.25);
+        border: 3px solid #fbbf24;
+        box-shadow: 0 0 0 2px #fff, 0 0 50px rgba(251, 191, 36, 0.8);
+        animation: winnerPulse 2s infinite;
+    }
+    @keyframes winnerPulse {
+        0%, 100% { box-shadow: 0 0 0 2px #fff, 0 0 30px rgba(251, 191, 36, 0.5); }
+        50% { box-shadow: 0 0 0 2px #fff, 0 0 60px rgba(251, 191, 36, 0.8); }
+    }
+
+    /* Player Info (Suprapus) */
+    .player-info {
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(255,255,255,0.08);
+        backdrop-filter: blur(4px);
+        padding: 4px 12px; border-radius: 12px;
+        text-align: center; margin-top: -14px;
+        min-width: 90px; position: relative; z-index: 40;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+    }
+    .p-name { font-size: 10px; color: var(--text-gray); font-weight: 700; text-transform: uppercase; }
+    .p-money { display: flex; align-items: center; justify-content: center; font-size: 12px; color: white; font-weight: 800; }
+    .currency-chip { display: inline-block; width: 14px; height: 14px; background: radial-gradient(circle, #fbbf24 40%, #b45309 95%); border-radius: 50%; margin-right: 4px; }
+
+    /* =========================================
+       4. BET PILL (POZIȚIONARE DINAMICĂ)
+       ========================================= */
+    .bet-pill {
+        position: absolute; background: #0f172a; border: 1px solid #334155;
+        padding: 4px 8px; border-radius: 12px; display: flex; align-items: center; gap: 4px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.5); z-index: 60; opacity: 0; pointer-events: none;
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .seat.has-bet .bet-pill { opacity: 1; }
+    .bet-chip-icon { width: 14px; height: 14px; background: radial-gradient(#ef4444, #991b1b); border-radius: 50%; }
+    .bet-text { font-size: 11px; font-weight: 800; color: #fff; }
+
+    /* Poziționare în funcție de scaun */
+    .seat[data-pos="0"] .bet-pill, .seat[data-pos="1"] .bet-pill, .seat[data-pos="6"] .bet-pill {
+        top: -45px; left: 50%; transform: translateX(-50%) scale(0.8);
+    }
+    .seat[data-pos="0"].has-bet .bet-pill, .seat[data-pos="1"].has-bet .bet-pill, .seat[data-pos="6"].has-bet .bet-pill {
+        transform: translateX(-50%) scale(1);
+    }
+
+    .seat[data-pos="3"] .bet-pill, .seat[data-pos="4"] .bet-pill {
+        bottom: -45px; left: 50%; transform: translateX(-50%) scale(0.8); top: auto;
+    }
+    .seat[data-pos="3"].has-bet .bet-pill, .seat[data-pos="4"].has-bet .bet-pill {
+        transform: translateX(-50%) scale(1);
+    }
+
+    .seat[data-pos="2"] .bet-pill { top: 50%; right: -75px; transform: translateY(-50%) scale(0.8); left: auto; }
+    .seat[data-pos="2"].has-bet .bet-pill { transform: translateY(-50%) scale(1); }
+
+    .seat[data-pos="5"] .bet-pill { top: 50%; left: -75px; transform: translateY(-50%) scale(0.8); }
+    .seat[data-pos="5"].has-bet .bet-pill { transform: translateY(-50%) scale(1); }
+
+    /* =========================================
+       5. CĂRȚI (FIZICĂ MOCKUP)
+       ========================================= */
+    .hand-cards {
+        display: flex; position: absolute; top: 95px; z-index: 10; 
+        transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+        justify-content: center; width: 100px; perspective: 800px; pointer-events: auto; cursor: pointer;
+    }
+    .seat[data-pos="0"] .hand-cards { top: 100px; scale: 1.25; z-index: 50; }
+    .hand-cards.revealed { width: 160px; z-index: 200 !important; }
+    
+    .hand-cards.shaking { animation: jiggle 0.4s ease-in-out; }
+    @keyframes jiggle { 
+        0%, 100% { transform: translateX(0) rotate(0deg); } 
+        25% { transform: translateX(-4px) rotate(-3deg); } 
+        50% { transform: translateX(4px) rotate(3deg); } 
+        75% { transform: translateX(-4px) rotate(-3deg); } 
+        100% { transform: translateX(0); } 
+    }
+
+    .card { 
+        width: 40px; height: 58px; position: relative; margin-left: -18px; 
+        transform-style: preserve-3d; transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), margin 0.4s ease;
+        transform-origin: bottom center; opacity: 1; cursor: pointer;
+    }
+    .card.dealt { opacity: 1 !important; }
+    .card:first-child { margin-left: 0; }
+
+    /* Hover (Doar când nu sunt revealed) */
+    .hand-cards:not(.revealed) .card:hover { z-index: 100 !important; }
+    .hand-cards:not(.revealed) .card:nth-child(1):hover { transform: translateY(-15px) rotate(-12deg) scale(1.1) !important; }
+    .hand-cards:not(.revealed) .card:nth-child(2):hover { transform: translateY(-15px) rotate(0deg) scale(1.1) !important; }
+    .hand-cards:not(.revealed) .card:nth-child(3):hover { transform: translateY(-15px) rotate(12deg) scale(1.1) !important; }
+
+    /* Poziții Evantai Standard */
+    .card:nth-child(1) { transform: rotate(-12deg); }
+    .card:nth-child(2) { z-index: 2; transform: translateY(-4px); }
+    .card:nth-child(3) { transform: rotate(12deg); }
+
+    /* Stare Revealed */
+    .hand-cards.revealed .card { margin-left: 6px; transform: rotate(0deg) !important; }
+    .hand-cards.revealed .card:first-child { margin-left: 0; }
+    .hand-cards.revealed .card.flipped { transform: rotateY(180deg) !important; box-shadow: 0 15px 35px rgba(0,0,0,0.6); }
+
+    /* Card Faces */
+    .card-face {
+        position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 5px;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        font-weight: 800; font-size: 15px; border: 1px solid rgba(0,0,0,0.1);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.4); background: white;
+    }
+    .card-back {
+        background: var(--accent-red); border: 2px solid white;
+        background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,0.1) 5px, rgba(255,255,255,0.1) 10px);
+    }
+    .card-front { transform: rotateY(180deg); color: #1e293b; }
+    .card-front.red { color: #d93025; }
+
+    /* =========================================
+       6. ELEMENTE AUXILIARE & FX
+       ========================================= */
+    .timer-svg {
+        position: absolute; inset: 0; width: 100%; height: 100%;
+        transform: rotate(90deg) scaleX(-1); overflow: visible; pointer-events: none; z-index: 50;
+        opacity: 0; transition: opacity 0.3s;
+    }
+    .seat.active .timer-svg { opacity: 1; }
+    .timer-track { fill: none; stroke: rgba(0, 0, 0, 0.5); stroke-width: 4; }
+    .timer-circle { fill: none; stroke-width: 4; stroke-linecap: round; stroke-dasharray: 220; stroke-dashoffset: 220; transition: none; }
+
+    .dealer-chip {
+        position: absolute; width: 30px; height: 30px;
+        background: linear-gradient(135deg, #ffffff, #e2e8f0); color: #0f172a;
+        border-radius: 50%; font-size: 14px; font-weight: 900;
+        display: none; align-items: center; justify-content: center;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.5); z-index: 25; bottom: 0; right: -30px;
+    }
+    .seat.is-dealer .dealer-chip { display: flex; animation: chipPop 0.4s ease; }
+    @keyframes chipPop { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+
+    .eye-hud {
+        position: absolute; top: -5px; right: -5px; width: 24px; height: 24px;
+        background: var(--glass-bg); backdrop-filter: blur(4px);
+        border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        border: 1px solid var(--glass-border); z-index: 40; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
+    .seat.seen-status .eye-hud { background: rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.5); }
+
+    /* FX Objects */
+    .thrown-card {
+        position: fixed; z-index: 99999; width: 40px; height: 58px; pointer-events: none;
+        transform-style: preserve-3d; backface-visibility: visible;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.5); transform-origin: center center;
+    }
+    .flying-chip {
+        position: fixed; z-index: 2147483647; width: 30px; height: 30px;
+        background: radial-gradient(circle at 30% 30%, #fde047, #b45309);
+        border: 2px dashed #fff; border-radius: 50%; box-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+        pointer-events: none; transform-origin: center center; will-change: transform, left, top;
+    }
+
+    /* =========================================
+       7. CONTROALE DE JOC
+       ========================================= */
+    .controls-wrapper {
+        position: fixed; bottom: 30px; right: 30px;
+        display: flex; flex-direction: column; align-items: flex-end; gap: 12px; z-index: 500;
+    }
+    .raise-control-container { display: flex; gap: 12px; align-items: flex-end; }
+    
+    .btn-game {
+        height: 56px; padding: 0 24px; min-width: 80px;
+        border-radius: 16px; border: none; font-size: 14px; font-weight: 800; color: white;
+        cursor: pointer; box-shadow: 0 6px 0 rgba(0,0,0,0.4);
+        display: flex; flex-direction: column; justify-content: center; align-items: center; transition: 0.1s;
+    }
+    .btn-game:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,0.4); }
+    .btn-game:disabled { opacity: 0.5; filter: grayscale(1); cursor: not-allowed; }
+    
+    .btn-fold { background: linear-gradient(to bottom, #ef4444, #991b1b); }
+    .btn-call { background: linear-gradient(to bottom, #3b82f6, #1e40af); }
+    .btn-raise { background: linear-gradient(to bottom, #10b981, #047857); }
+
+    .raise-slider-wrapper {
+        position: absolute; bottom: 70px; right: 0; width: 60px; height: 200px;
+        background: rgba(15, 23, 42, 0.95); border-radius: 30px; border: 1px solid rgba(255,255,255,0.1);
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        opacity: 0; pointer-events: none; transform: translateY(20px); transition: 0.3s; z-index: 1;
+    }
+    .raise-slider-wrapper.open { opacity: 1; pointer-events: auto; transform: translateY(0); }
+    input[type=range] { -webkit-appearance: none; background: transparent; cursor: pointer; transform: rotate(-90deg); width: 140px; height: 40px; }
+    .slider-value { position: absolute; top: -40px; background: #10b981; color: white; padding: 4px 8px; border-radius: 8px; font-weight: 800; }
+
+    /* =========================================
+       8. INVISIBLE CHAT + EMOJI PICKER (NOU)
+       ========================================= */
+    .chat-widget {
+        position: fixed; bottom: 30px; left: 30px; 
+        width: 320px; height: 200px;
+        background: rgba(0, 0, 0, 0); 
+        display: flex; flex-direction: column;
+        justify-content: flex-end; 
+        z-index: 90;
+        pointer-events: none;
+    }
+    
+    .chat-widget:hover { pointer-events: auto; }
+    .chat-input-wrap, .chat-messages { pointer-events: auto; }
+
+    .chat-messages {
+        flex: 1; padding: 10px 0;
+        overflow-y: auto; 
+        display: flex; flex-direction: column; gap: 4px;
+        font-size: 13px; text-shadow: 0 1px 3px black;
+        mask-image: linear-gradient(to bottom, transparent 0%, black 30%);
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 30%);
+    }
+    .chat-messages::-webkit-scrollbar { display: none; }
+
+    .chat-line { 
+        line-height: 1.4; color: rgba(255,255,255,0.9); 
+        animation: slideUpMsg 0.2s ease forwards;
+        word-break: break-word; white-space: pre-wrap;
+    }
+    @keyframes slideUpMsg { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+    .chat-name { font-weight: 800; color: var(--brand-secondary); margin-right: 6px; font-size: 12px; }
+    .chat-system { color: var(--accent-gold); font-style: italic; font-weight: 700; margin-right: 4px; font-size: 11px; text-transform: uppercase; }
+
+    .chat-input-wrap {
+        padding-top: 10px; display: flex; gap: 8px; align-items: center; position: relative;
+    }
+    .chat-input {
+        flex: 1;
+        background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+        padding: 8px 12px; border-radius: 6px; color: white; font-size: 12px; outline: none;
+        transition: 0.2s; backdrop-filter: blur(4px);
+    }
+    .chat-input:focus { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.3); }
+    
+    /* Chat Action Buttons */
+    .btn-chat-action {
+        width: 32px; height: 32px;
+        background: transparent;
+        border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+        color: rgba(255,255,255,0.6); font-size: 14px;
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        transition: 0.2s; backdrop-filter: blur(4px);
+    }
+    .btn-chat-action:hover { color: white; border-color: rgba(255,255,255,0.4); box-shadow: 0 0 10px rgba(255,255,255,0.1); }
+
+    /* EMOJI PICKER POPUP */
+    .emoji-picker {
+        position: absolute; bottom: 50px; right: 0;
+        width: 220px; background: rgba(15, 23, 42, 0.95);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(255,255,255,0.1); border-radius: 12px;
+        padding: 12px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;
+        opacity: 0; pointer-events: none; transform: translateY(10px);
+        transition: 0.2s; z-index: 100;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    }
+    .emoji-picker.active { opacity: 1; pointer-events: auto; transform: translateY(0); }
+    
+    .emoji-btn {
+        background: transparent; border: none; font-size: 20px; cursor: pointer;
+        padding: 6px; border-radius: 4px; transition: 0.2s; display: flex; justify-content: center; align-items: center;
+    }
+    .emoji-btn:hover { background: rgba(255,255,255,0.1); transform: scale(1.2); }
+
+    /* =========================================
+       9. FOOTER INFO (NOU)
+       ========================================= */
+    .info-pill {
+        position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(8px);
+        border: 1px solid rgba(255,255,255,0.05); padding: 6px 16px; border-radius: 20px;
+        display: flex; gap: 20px; align-items: center; z-index: 100; pointer-events: none;
+    }
+    .info-item { font-family: 'Roboto Mono', monospace; font-size: 10px; color: var(--text-gray); text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
+    .info-item span { color: white; font-weight: 600; }
+    .dot-status { width: 6px; height: 6px; background: var(--accent-green); border-radius: 50%; box-shadow: 0 0 5px var(--accent-green); }

@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>AION SEKA | Game Room</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
+    <script src="/socket.io/socket.io.js"></script>
+
+    <style>
+        /* [STYLES RĂMÂN NESCHIMBATE DIN VERSIUNEA ANTERIOARĂ - LE POȚI PĂSTRA PE CELE VECHI] */
+        /* --- CSS VARIABLES & RESET --- */
+        :root {
+            --bg-dark: #0a0b10;
+            --table-felt: #2c5e2e;
+            --table-border: #1a1c24;
+            --gold: #fbbf24;
+            --danger: #ef4444;
+            --success: #10b981;
+            --primary: #3b82f6;
+            --text-main: #e2e8f0;
+        }
+
+        * { box-sizing: border-box; user-select: none; }
+        body { 
+            margin: 0; height: 100vh; overflow: hidden; 
+            background: radial-gradient(circle at center, #1f2937 0%, var(--bg-dark) 100%);
+            font-family: 'Manrope', sans-serif; color: var(--text-main);
+            display: flex; flex-direction: column;
+        }
+
+        #app-container { display: flex; flex: 1; height: 100%; }
+
+        /* DEBUG PANEL */
+        #debug-panel {
+            width: 300px; background: #000; border-right: 1px solid #333;
+            display: flex; flex-direction: column; font-family: 'Roboto Mono', monospace; font-size: 11px;
+            z-index: 1000;
+        }
+        .log-entry { padding: 4px 8px; border-bottom: 1px solid #222; word-break: break-all; }
+        .log-type { color: var(--primary); font-weight: bold; margin-right: 5px; }
+        .log-err { color: var(--danger); }
+
+        /* GAME AREA */
+        #game-view {
+            flex: 1; position: relative; display: flex; 
+            justify-content: center; align-items: center;
+            perspective: 1000px;
+        }
+
+        .poker-table {
+            width: 90%; max-width: 1000px; aspect-ratio: 2/1;
+            background: var(--table-felt);
+            border: 15px solid var(--table-border);
+            border-radius: 200px;
+            position: relative;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.8), 0 20px 50px rgba(0,0,0,0.5);
+        }
+
+        .center-hud {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        .pot-display { font-size: 2rem; font-weight: 800; color: var(--gold); text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        .game-status { font-size: 0.8rem; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 1px; }
+
+        /* SEATS */
+        .seat {
+            position: absolute; width: 100px; height: 100px;
+            display: flex; flex-direction: column; align-items: center;
+            transition: all 0.3s ease;
+        }
+        .seat[data-pos="0"] { bottom: -40px; left: 50%; transform: translateX(-50%); } 
+        .seat[data-pos="1"] { bottom: 10%; left: 5%; }
+        .seat[data-pos="2"] { top: 20%; left: -30px; }
+        .seat[data-pos="3"] { top: -40px; left: 30%; }
+        .seat[data-pos="4"] { top: -40px; right: 30%; }
+        .seat[data-pos="5"] { top: 20%; right: -30px; }
+        .seat[data-pos="6"] { bottom: 10%; right: 5%; }
+
+        .avatar {
+            width: 60px; height: 60px; background: #1f2937; border: 3px solid #374151;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 1.2rem; position: relative; z-index: 2;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: all 0.3s;
+        }
+        
+        .seat.active .avatar { border-color: var(--success); box-shadow: 0 0 20px rgba(16, 185, 129, 0.4); transform: scale(1.1); }
+        .seat.folded { opacity: 0.5; filter: grayscale(1); }
+        .seat.winner .avatar { border-color: var(--gold); box-shadow: 0 0 40px var(--gold); }
+
+        .player-meta {
+            background: rgba(0,0,0,0.8); padding: 4px 8px; border-radius: 12px;
+            text-align: center; margin-top: -10px; z-index: 3; min-width: 80px;
+        }
+        .p-name { font-size: 10px; color: #9ca3af; display: block; }
+        .p-chips { font-size: 12px; font-weight: bold; color: white; display: block; }
+        .p-bet { font-size: 10px; color: var(--gold); font-weight: 700; margin-top: 2px; }
+
+        /* CARDS */
+        .hand-container {
+            display: flex; gap: 4px; position: absolute; z-index: 10;
+            transition: all 0.3s;
+        }
+        .seat[data-pos="0"] .hand-container { top: -50px; cursor: pointer; } 
+        .seat:not([data-pos="0"]) .hand-container { top: 30px; opacity: 0.9; transform: scale(0.8); }
+
+        .card {
+            width: 32px; height: 48px; background: white; border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        .card.red { color: #dc2626; }
+        .card.black { color: #000; }
+        .card.back { 
+            background: repeating-linear-gradient(45deg, #1e3a8a, #1e3a8a 5px, #172554 5px, #172554 10px);
+            border: 2px solid #fff; color: transparent;
+        }
+
+        /* CONTROLS */
+        #controls-bar {
+            position: absolute; bottom: 20px; right: 20px;
+            display: flex; gap: 10px; align-items: flex-end;
+        }
+        .btn-action {
+            height: 50px; padding: 0 24px; border: none; border-radius: 8px;
+            font-weight: 800; font-family: inherit; text-transform: uppercase;
+            cursor: pointer; color: white; opacity: 0.5; /* Default disabled look */
+            /* IMPORTANT: Removed pointer-events: none to allow debug/clicks if logic fails */
+            box-shadow: 0 4px 0 rgba(0,0,0,0.2); transition: all 0.1s;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+        }
+        .btn-action:disabled { cursor: not-allowed; filter: grayscale(100%); }
+        .btn-action.active { opacity: 1; cursor: pointer; }
+        .btn-action:active { transform: translateY(4px); box-shadow: none; }
+
+        .btn-fold { background: var(--danger); }
+        .btn-call { background: var(--primary); }
+        .btn-raise { background: var(--success); }
+
+        #loading-screen {
+            position: fixed; inset: 0; background: #000; z-index: 9999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+        }
+        .spinner { width: 40px; height: 40px; border: 4px solid #333; border-top-color: var(--gold); border-radius: 50%; animation: spin 1s infinite linear; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div id="loading-screen">
+        <div class="spinner"></div>
+        <div style="margin-top: 20px; color: #666;" id="loading-text">Connecting to room...</div>
+    </div>
+
+    <div id="app-container">
+        <div id="debug-panel">
+            <div style="padding: 10px; background: #111; color: var(--gold); font-weight: bold; border-bottom: 1px solid #333;">SYSTEM LOGS</div>
+            <div id="logs-container" style="flex: 1; overflow-y: auto;"></div>
+        </div>
+
+        <div id="game-view">
+            <div class="poker-table">
+                <div class="center-hud">
+                    <div style="font-size: 10px; color: #bbb;">POT TOTAL</div>
+                    <div class="pot-display" id="pot-amount">0</div>
+                    <div class="game-status" id="game-status">WAITING FOR PLAYERS</div>
+                </div>
+                <div id="seats-layer"></div>
+            </div>
+
+            <div id="controls-bar">
+                <button class="btn-action btn-fold" id="btn-fold" disabled onclick="Game.sendAction('FOLD')">FOLD</button>
+                <button class="btn-action btn-call" id="btn-call" disabled onclick="Game.sendAction('CALL')">
+                    CALL <span class="small" id="lbl-call-amt">0</span>
+                </button>
+                <button class="btn-action btn-raise" id="btn-raise" disabled onclick="Game.toggleRaise()">
+                    RAISE <span class="small">100</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    /**
+     * ==========================================
+     * AION SEKA CLIENT - PRODUCTION READY
+     * ==========================================
+     */
+
+    const Config = {
+        DEFAULT_RAISE: 100
+    };
+
+    const Store = {
+        user: null,      
+        roomId: null,    
+        socket: null,    
+        state: null,     
+        myHand: [],      
+        seatMap: [],     
+    };
+
+    const Logger = {
+        log: (type, msg, data = null) => {
+            console.log(`%c[${type}] ${msg}`, 'color: #3b82f6; font-weight: bold;', data || '');
+            const container = document.getElementById('logs-container');
+            if (!container) return;
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            const time = new Date().toLocaleTimeString().split(' ')[0];
+            entry.innerHTML = `<span style="color:#666">[${time}]</span> <span class="log-type">${type}</span> ${msg}`;
+            container.prepend(entry);
+        },
+        error: (msg) => {
+            console.error(msg);
+            alert(msg);
+        }
+    };
+
+    const App = {
+        init: () => {
+            try {
+                // 1. Preluare user din sesiunea creată la login/lobby
+                const storedUser = sessionStorage.getItem('seka_user');
+                const storedRoom = sessionStorage.getItem('current_room_id');
+
+                if (!storedUser || !storedRoom) {
+                    Logger.error("Sesiune expirată sau invalidă. Te rugăm să te loghezi din nou.");
+                    setTimeout(() => window.location.href = 'index.html', 1000);
+                    return;
+                }
+
+                Store.user = JSON.parse(storedUser);
+                Store.roomId = storedRoom;
+                Logger.log('SYS', `Logged in as: ${Store.user.username}`);
+                
+                App.connectSocket();
+
+            } catch (e) {
+                console.error(e);
+            }
+        },
+
+        connectSocket: () => {
+            Store.socket = io({ transports: ['websocket'], upgrade: false });
+            const s = Store.socket;
+
+            s.on('connect', () => {
+                Logger.log('NET', 'Connected to server');
+                document.getElementById('loading-screen').style.display = 'none';
+                s.emit('join_room', { username: Store.user.username, roomId: Store.roomId });
+            });
+
+            s.on('game_state', Game.onStateUpdate);
+            s.on('your_cards', Game.onReceiveCards);
+            s.on('action_anim', (data) => Logger.log('GAME', `${data.username} -> ${data.type}`));
+            s.on('round_winner', (data) => {
+                Logger.log('WIN', `Winner: ${data.winner}`);
+                Game.highlightWinner(data.winner);
+            });
+            s.on('msg_error', (msg) => Logger.error(msg));
+        }
+    };
+
+    const Game = {
+        onStateUpdate: (serverState) => {
+            Store.state = serverState;
+            
+            // 1. Calculăm harta locurilor (Rotație)
+            // Trebuie să ne găsim propriul index pe server
+            const players = serverState.players || [];
+            const myIdx = players.findIndex(p => p.username === Store.user.username);
+            const total = players.length;
+
+            Store.seatMap = []; 
+
+            players.forEach((p, serverIdx) => {
+                let visualIdx = serverIdx; // Default (Spectator)
+                
+                if (myIdx !== -1) {
+                    // Dacă jucăm, rotim masa ca să fim la locul 0
+                    visualIdx = (serverIdx - myIdx + total) % total;
+                }
+                
+                Store.seatMap.push({ username: p.username, visualIdx, data: p });
+            });
+
+            // 2. Randăm
+            UI.renderTable();
+            UI.updateControls();
+        },
+
+        onReceiveCards: (cards) => {
+            Logger.log('CARDS', 'Am primit cărțile:', cards);
+            Store.myHand = cards;
+            UI.renderTable(); // Re-randare pentru a arăta fețele
+        },
+
+        requestSeeCards: () => {
+            if (Store.myHand.length > 0) {
+                Logger.log('UI', 'Deja vizibile.');
+                return;
+            }
+            Logger.log('NET', 'Request: SEE_CARDS');
+            Store.socket.emit('action', { type: 'SEE_CARDS' });
+        },
+
+        sendAction: (type, amount = 0) => {
+            Logger.log('UI', `Buton: ${type}`);
+            if (type === 'FOLD') Store.socket.emit('action', { type: 'FOLD' });
+            else if (type === 'CALL') {
+                const me = Store.seatMap.find(m => m.username === Store.user.username);
+                const amt = me ? me.data.callAmount : 0;
+                Store.socket.emit('action', { type: 'BET', amount: amt });
+            }
+            else if (type === 'RAISE') {
+                const me = Store.seatMap.find(m => m.username === Store.user.username);
+                const currentCall = me ? me.data.callAmount : 0;
+                // Raise simplu: Call + 100
+                Store.socket.emit('action', { type: 'BET', amount: currentCall + Config.DEFAULT_RAISE });
+            }
+        },
+
+        toggleRaise: () => Game.sendAction('RAISE'),
+
+        highlightWinner: (winnerName) => {
+            const map = Store.seatMap.find(m => m.username === winnerName);
+            if(map) {
+                const el = document.querySelector(`.seat[data-pos="${map.visualIdx}"]`);
+                if(el) el.classList.add('winner');
+                setTimeout(() => document.querySelectorAll('.winner').forEach(e => e.classList.remove('winner')), 4000);
+            }
+            Store.myHand = [];
+        }
+    };
+
+    const UI = {
+        renderTable: () => {
+            const state = Store.state;
+            document.getElementById('pot-amount').innerText = state.pot;
+            document.getElementById('game-status').innerText = `${state.gameState} | TURN: ${state.currentTurn || '...'}`;
+
+            const container = document.getElementById('seats-layer');
+            container.innerHTML = '';
+
+            Store.seatMap.forEach(map => {
+                const p = map.data;
+                const isMe = p.username === Store.user.username;
+                const isTurn = state.currentTurn === p.username;
+                
+                const el = document.createElement('div');
+                el.className = `seat ${isTurn ? 'active' : ''} ${p.isFolded ? 'folded' : ''}`;
+                el.setAttribute('data-pos', map.visualIdx);
+
+                // --- CARTI ---
+                let cardsHtml = '';
+                
+                // 1. Dacă sunt eu și le-am primit -> Arat FATA
+                if (isMe && Store.myHand.length > 0 && !p.isFolded) {
+                    cardsHtml = Store.myHand.map(c => {
+                        const isRed = c.suit === 'heart' || c.suit === 'diamond';
+                        const sym = UI.getSymbol(c.suit);
+                        return `<div class="card ${isRed ? 'red' : 'black'}">${c.rank}${sym}</div>`;
+                    }).join('');
+                } 
+                // 2. Dacă sunt eu și NU le-am primit (dar joc) -> Arat SPATE + CLICK
+                else if (isMe && !p.isFolded) {
+                    cardsHtml = `
+                        <div class="card back" onclick="Game.requestSeeCards()"></div>
+                        <div class="card back" onclick="Game.requestSeeCards()"></div>
+                        <div class="card back" onclick="Game.requestSeeCards()"></div>
+                    `;
+                }
+                // 3. Adversar activ -> Arat SPATE
+                else if (!p.isFolded && !p.isSpectator) {
+                    cardsHtml = `<div class="card back"></div><div class="card back"></div><div class="card back"></div>`;
+                }
+
+                el.innerHTML = `
+                    <div class="hand-container">${cardsHtml}</div>
+                    <div class="avatar">${p.username.charAt(0).toUpperCase()}</div>
+                    <div class="player-meta">
+                        <span class="p-name">${p.username}</span>
+                        <span class="p-chips">${p.chips}</span>
+                        ${p.currentBet > 0 ? `<span class="p-bet">BET: ${p.currentBet}</span>` : ''}
+                    </div>
+                `;
+                container.appendChild(el);
+            });
+        },
+
+        updateControls: () => {
+            const currentTurn = Store.state.currentTurn;
+            const myName = Store.user.username;
+            
+            // Case-insensitive check
+            const isMyTurn = currentTurn && (currentTurn.toLowerCase() === myName.toLowerCase());
+            
+            const btns = document.querySelectorAll('.btn-action');
+            const btnCall = document.getElementById('btn-call');
+
+            // Suma de Call
+            const me = Store.seatMap.find(m => m.username === myName);
+            const callAmount = me ? me.data.callAmount : 0;
+            document.getElementById('lbl-call-amt').innerText = callAmount;
+
+            if (isMyTurn) {
+                btns.forEach(b => {
+                    b.classList.add('active');
+                    b.disabled = false;
+                });
+            } else {
+                btns.forEach(b => {
+                    b.classList.remove('active');
+                    b.disabled = true;
+                });
+            }
+        },
+
+        getSymbol: (suit) => {
+            if(suit==='heart') return '♥';
+            if(suit==='diamond') return '♦';
+            if(suit==='club') return '♣';
+            return '♠';
+        }
+    };
+
+    window.onload = App.init;
+    </script>
+</body>
+</html>

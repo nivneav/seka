@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seka - Premium Online Card Game</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://seka-assets.com/static/css/pages/index.css?v=1.0">
+    
+    <style>
+        /* Stil mic pentru erori, integrat în designul tău */
+        .error-message {
+            color: #ff4444;
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+            text-align: center;
+            display: none;
+            background: rgba(255, 68, 68, 0.1);
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 68, 68, 0.2);
+        }
+        /* --- MEDIU DE TEST --- */
+        body {
+            background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+            height: 100vh;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Manrope', sans-serif;
+            overflow: hidden;
+        }
+
+        /* --- CONTAINER --- */
+        .seka-logo-container {
+            position: relative;
+            width: 180px; 
+            height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        /* --- CARTEA GENERALĂ --- */
+        .master-card {
+            position: absolute;
+            width: 50px;
+            height: 72px;
+            background: #ffffff;
+            border-radius: 5px;
+            /* Umbră realistă */
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3), 0 0 1px rgba(0,0,0,0.1) inset;
+            border: 1px solid rgba(0,0,0,0.05);
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            /* PIVOT EXTERN (Esențial pentru arc) */
+            transform-origin: 50% 180%; 
+            
+            /* TRANZIȚII FLUIDE */
+            transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1.1), box-shadow 0.6s ease;
+            
+            will-change: transform;
+            z-index: 1;
+        }
+
+        /* STRAT DE LUCIU */
+        .master-card::after {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,0.02) 100%);
+            border-radius: 5px; pointer-events: none; opacity: 0.7;
+        }
+
+        /* --- ELEMENTE GRAFICE --- */
+        .mc-center { font-size: 28px; font-weight: 800; line-height: 1; margin-top: -2px; transition: 0.4s; }
+        .mc-pip { position: absolute; font-size: 13px; font-weight: 700; transition: 0.4s; }
+        .mc-pip.tl { top: 3px; left: 3px; }
+        .mc-pip.br { bottom: 3px; right: 3px; transform: rotate(180deg); }
+        .c-red { color: #dc2626; }
+        .c-black { color: #0f172a; }
+
+        /* Z-INDEX */
+        .master-card[data-id="S"] { z-index: 10; }
+        .master-card[data-id="E"] { z-index: 9; }
+        .master-card[data-id="K"] { z-index: 8; }
+        .master-card[data-id="A"] { z-index: 7; }
+
+
+        /* =========================================
+           1. STAREA "MESSY PILE" (Repaus)
+        ========================================= */
+        
+        .master-card[data-id="S"] { transform: translate(-2px, 1px) rotate(-3deg); }
+        .master-card[data-id="E"] { transform: translate(3px, -1px) rotate(2deg); }
+        .master-card[data-id="K"] { transform: translate(-4px, 2px) rotate(-5deg); }
+        .master-card[data-id="A"] { transform: translate(5px, 0px) rotate(4deg); }
+
+
+        /* =========================================
+           2. STAREA DE HOVER (COMPACT FAN)
+           Am redus drastic valorile pentru spread mic.
+        ========================================= */
+
+        .seka-logo-container:hover .master-card {
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+            /* Resetăm orice delay la hover ca să fie instant */
+            transition-delay: 0s !important; 
+        }
+
+        /* Spread redus (aprox 28px distanță) */
+        .seka-logo-container:hover .master-card[data-id="S"] { transform: translateX(-42px) rotate(-15deg) translateY(-8px); }
+        .seka-logo-container:hover .master-card[data-id="E"] { transform: translateX(-14px) rotate(-5deg) translateY(-3px); }
+        .seka-logo-container:hover .master-card[data-id="K"] { transform: translateX(14px) rotate(5deg) translateY(-3px); }
+        .seka-logo-container:hover .master-card[data-id="A"] { transform: translateX(42px) rotate(15deg) translateY(-8px); }
+
+
+        /* =========================================
+           3. LOGICA DE CASCADĂ (SHUFFLE)
+           Când iei mouse-ul, cărțile cad pe rând.
+        ========================================= */
+
+        .seka-logo-container:not(:hover) .master-card[data-id="A"] { transition-delay: 0.00s; }
+        .seka-logo-container:not(:hover) .master-card[data-id="K"] { transition-delay: 0.05s; }
+        .seka-logo-container:not(:hover) .master-card[data-id="E"] { transition-delay: 0.10s; }
+        .seka-logo-container:not(:hover) .master-card[data-id="S"] { transition-delay: 0.15s; }
+
+
+        /* =========================================
+           4. TRANSFORMAREA S -> 7 (MAGIC MORPH)
+           Aici este trucul cerut.
+        ========================================= */
+
+        /* Containerul interior al primei cărți */
+        .morph-container {
+            position: relative;
+            width: 100%; height: 100%;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* Cele două stări suprapuse */
+        .state-s, .state-7 {
+            position: absolute;
+            width: 100%; height: 100%;
+            display: flex; align-items: center; justify-content: center;
+            top: 0; left: 0;
+            transition: all 0.5s ease-in-out;
+        }
+
+        /* STAREA S (Default vizibilă) */
+        .state-s { opacity: 1; transform: scale(1) rotate(0deg); filter: blur(0); }
+        
+        /* STAREA 7 (Default invizibilă) */
+        .state-7 { opacity: 0; transform: scale(0.8) rotate(10deg); filter: blur(2px); }
+
+        /* CLASA MAGICĂ "is-seven" (Adăugată cu JS la MouseLeave) */
+        /* Când clasa e activă, S dispare și 7 apare */
+        .seka-logo-container.show-seven .state-s {
+            opacity: 0;
+            transform: scale(1.2); /* Se mărește și dispare */
+            filter: blur(2px);
+        }
+        
+        .seka-logo-container.show-seven .state-7 {
+            opacity: 1;
+            transform: scale(1) rotate(0deg); /* Revine la normal */
+            filter: blur(0);
+            /* Delay mic ca să aștepte strângerea pachetului */
+            transition-delay: 0.3s; 
+        }
+
+        /* Când e hover, forțăm revenirea instantă la S fără delay */
+        .seka-logo-container:hover .state-s,
+        .seka-logo-container:hover .state-7 {
+            transition-duration: 0.2s;
+            transition-delay: 0s;
+        }
+
+        .instruction { margin-top: 60px; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.6; }
+    </style>
+
+</head>
+<body>
+    <div class="ambient-bg">
+        <div class="ambient-orb orb-1"></div>
+        <div class="ambient-orb orb-2"></div>
+        <div class="ambient-orb orb-3"></div>
+    </div>
+
+    <div class="floating-cards">
+        <div class="floating-card" style="--rotate: -15deg; color:000;">&#9824;</div>
+        <div class="floating-card" style="--rotate: 12deg; color: #ef4444;">&#9829;</div>
+        <div class="floating-card" style="--rotate: 8deg; color: #ef4444;">&#9830;</div>
+        <div class="floating-card" style="--rotate: -10deg;">&#9827;</div>
+    </div>
+
+    <header class="header" id="header">
+         <div class="seka-logo-container" id="logoBox">
+        
+        <div class="master-card c-black" data-id="S">
+            <div class="morph-container">
+                
+                <div class="state-s">
+                    <div class="mc-pip tl">♠</div>
+                    <div class="mc-center">S</div>
+                    <div class="mc-pip br">♠</div>
+                </div>
+
+                <div class="state-7">
+                    <div class="mc-pip tl">♠</div>
+                    <div class="mc-center" style="font-size:36px;">7</div>
+                    <div class="mc-pip br">♠</div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="master-card c-red" data-id="E">
+            <div class="mc-pip tl">♥</div>
+            <div class="mc-center">E</div>
+            <div class="mc-pip br">♥</div>
+        </div>
+
+        <div class="master-card c-black" data-id="K">
+            <div class="mc-pip tl">♣</div>
+            <div class="mc-center">K</div>
+            <div class="mc-pip br">♣</div>
+        </div>
+
+        <div class="master-card c-red" data-id="A">
+            <div class="mc-pip tl">♦</div>
+            <div class="mc-center">A</div>
+            <div class="mc-pip br">♦</div>
+        </div>
+
+    </div>
+        <div class="header-actions">
+            <button class="btn btn-outline" onclick="openModal('login')">Log In</button>
+            <button class="btn btn-primary" onclick="openModal('register')">Play Now</button>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="hero-content">
+            <div class="hero-badge">
+                <i class="fas fa-bolt"></i>
+                New Season Started - Exclusive Rewards
+            </div>
+            <h1 class="hero-title">
+                The Ultimate<br><span>Seka Experience</span>
+            </h1>
+            <p class="hero-subtitle">
+                Join thousands of players in the most thrilling online card game. 
+                Compete, climb the ranks, and become the ultimate Seka champion.
+            </p>
+            <div class="hero-actions">
+                <button class="btn btn-primary btn-large" onclick="openModal('register')">
+                    <i class="fas fa-play"></i>
+                    Start Playing Free
+                </button>
+                <button class="btn btn-outline btn-large" onclick="openModal('login')">
+                    <i class="fas fa-sign-in-alt"></i>
+                    Log In
+                </button>
+            </div>
+            <div class="hero-stats">
+                <div class="stat-item">
+                    <div class="stat-value">50<span>K+</span></div>
+                    <div class="stat-label">Active Players</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">1<span>M+</span></div>
+                    <div class="stat-label">Games Played</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">500<span>+</span></div>
+                    <div class="stat-label">Tables Online</div>
+                </div>
+            </div>
+        </div>
+    </section>
+   
+    <div class="modal-overlay" id="authModal">
+        <div class="modal" style="position: relative;">
+            <button class="modal-close" onclick="closeModal()">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="modal-header">
+                <div class="modal-logo">&#9830;</div>
+                <h2 class="modal-title">Welcome to Seka</h2>
+                <p class="modal-subtitle">Sign in or create an account to play</p>
+            </div>
+
+            <div class="modal-tabs">
+                <button class="modal-tab active" data-tab="login" onclick="switchTab('login')">Log In</button>
+                <button class="modal-tab" data-tab="register" onclick="switchTab('register')">Sign Up</button>
+            </div>
+
+            <div class="tab-content active" id="loginTab">
+                <div id="login-error" class="error-message"></div>
+                
+                <form onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label class="form-label">Username</label>
+                        <input type="text" id="login-username" class="form-input" placeholder="Enter your username" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input type="password" id="login-password" class="form-input" placeholder="Enter your password" required>
+                    </div>
+                    <button type="submit" class="form-btn">Log In</button>
+                </form>
+                
+                <p class="form-footer">
+                    Don't have an account? <a href="#" onclick="switchTab('register')">Sign up</a>
+                </p>
+            </div>
+
+            <div class="tab-content" id="registerTab">
+                <div id="reg-error" class="error-message"></div>
+
+                <form onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label class="form-label">Username</label>
+                        <input type="text" id="reg-username" class="form-input" placeholder="Choose a username" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" id="reg-email" class="form-input" placeholder="Enter your email" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input type="password" id="reg-pass" class="form-input" placeholder="Create a password" required>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="terms" required>
+                        <label for="terms">I agree to the <a href="#">Terms of Service</a></label>
+                    </div>
+                    <button type="submit" class="form-btn">Create Account</button>
+                </form>
+
+                <p class="form-footer">
+                    Already have an account? <a href="#" onclick="switchTab('login')">Log in</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- UI FUNCTIONS ---
+        window.addEventListener('scroll', () => {
+            const header = document.getElementById('header');
+            if (window.scrollY > 50) {
+                header.classList.add('scrolled');
+            } else {
+                header.classList.remove('scrolled');
+            }
+        });
+
+        function openModal(tab = 'login') {
+            const modal = document.getElementById('authModal');
+            modal.classList.add('active');
+            switchTab(tab);
+            document.body.style.overflow = 'hidden';
+            // Reset errors when opening
+            document.getElementById('login-error').style.display = 'none';
+            document.getElementById('reg-error').style.display = 'none';
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('authModal');
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.modal-tab[data-tab="${tab}"]`).classList.add('active');
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(tab + 'Tab').classList.add('active');
+        }
+
+        document.getElementById('authModal').addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-overlay')) {
+                closeModal();
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        //Smooth scroll
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
+                const href = this.getAttribute('href');
+                if (href !== '#') {
+                    e.preventDefault();
+                    const target = document.querySelector(href);
+                    if (target) target.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+        });
+
+        // --- BACKEND LOGIC (Actualizat pentru noile rute) ---
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            
+            const u = document.getElementById('login-username').value;
+            const p = document.getElementById('login-password').value;
+            const errBox = document.getElementById('login-error');
+            
+            errBox.style.display = 'none';
+
+            try {
+                // MODIFICAT: Calea acum este /api/auth/login
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username: u, password: p })
+                });
+                
+                const data = await res.json();
+                
+                if(data.success) {
+                    // Login reușit
+                    sessionStorage.setItem('seka_user', JSON.stringify(data.user));
+                    // Redirect către lobby
+                    window.location.href = 'lobby.html'; 
+                } else {
+                    // Eroare de la server
+                    errBox.innerText = data.message;
+                    errBox.style.display = 'block';
+                }
+            } catch (err) {
+                console.error(err);
+                errBox.innerText = "Eroare de conexiune la server.";
+                errBox.style.display = 'block';
+            }
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            
+            const u = document.getElementById('reg-username').value;
+            const em = document.getElementById('reg-email').value;
+            const p = document.getElementById('reg-pass').value;
+            const errBox = document.getElementById('reg-error');
+
+            errBox.style.display = 'none';
+
+            try {
+                // MODIFICAT: Calea acum este /api/auth/register
+                const res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username: u, email: em, password: p })
+                });
+
+                const data = await res.json();
+
+                if(data.success) {
+                    alert("Cont creat cu succes! Te rog să te loghezi.");
+                    switchTab('login');
+                    // Pre-completăm userul pentru ușurință
+                    document.getElementById('login-username').value = u;
+                } else {
+                    errBox.innerText = data.message;
+                    errBox.style.display = 'block';
+                }
+            } catch (err) {
+                console.error(err);
+                errBox.innerText = "Eroare de conexiune la server.";
+                errBox.style.display = 'block';
+            }
+        }
+    </script>
+    <script>
+        const container = document.getElementById('logoBox');
+
+        // Logică pentru transformare
+        container.addEventListener('mouseenter', () => {
+            // Când intrăm, scoatem imediat clasa de 7, revenim la S
+            container.classList.remove('show-seven');
+        });
+
+        container.addEventListener('mouseleave', () => {
+            // Când ieșim, adăugăm clasa.
+            // CSS-ul are un delay (transition-delay: 0.3s) pe .state-7
+            // Asta înseamnă că transformarea se va vedea DUPĂ ce cărțile s-au strâns.
+            container.classList.add('show-seven');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: seka_mysql
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - mysql_data:/var/lib/mysql
+    networks:
+      - seka_net
+
+  redis:
+    image: redis:alpine
+    container_name: seka_redis
+    networks:
+      - seka_net
+
+  backend:
+    build: ./backend
+    restart: always
+    env_file:
+      - .env
+    environment:
+      PORT: ${PORT}
+      DB_HOST: mysql 
+      DB_USER: ${MYSQL_USER}
+      DB_PASS: ${MYSQL_PASSWORD}
+      DB_NAME: ${MYSQL_DATABASE}
+      REDIS_HOST: redis
+      ASSET_URL: "https://seka-assets.com"
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - seka_net
+    deploy:
+      replicas: 2
+
+  nginx:
+    image: nginx:alpine
+    container_name: seka_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - backend
+    networks:
+      - seka_net
+
+networks:
+  seka_net:
+    driver: bridge
+
+volumes:
+  mysql_data:

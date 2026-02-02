@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AION SEKA - Master Edition</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+<style>
+    /* CSS GENERAL */
+    :root { --bg-dark: #050608; --bg-radial: radial-gradient(circle at 50% 50%, #151925 0%, #050608 100%); --table-felt: #202736; --table-border: #0e1116; --accent-green: #10b981; --accent-red: #ef4444; --accent-blue: #3b82f6; --accent-gold: #fbbf24; --text-white: #ffffff; --text-gray: #94a3b8; --glass-bg: rgba(255, 255, 255, 0.05); --glass-border: rgba(255, 255, 255, 0.1); }
+    * { box-sizing: border-box; }
+    body { background: var(--bg-radial); margin: 0; height: 100vh; overflow: hidden; font-family: 'Manrope', sans-serif; color: var(--text-white); display: flex; flex-direction: column; user-select: none; }
+    .header { position: absolute; top: 20px; left: 30px; z-index: 50; width:95%; display:flex; justify-content:space-between; align-items:center; pointer-events: none; }
+    .header * { pointer-events: auto; }
+    .logo { font-size: 24px; font-weight: 800; opacity: 0.9; } .logo span { color: var(--accent-red); }
+    .btn-circle-glass { width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); backdrop-filter: blur(12px); color: var(--text-gray); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
+    .btn-circle-glass:hover { background: rgba(255,255,255,0.1); color: white; transform: scale(1.05); }
+    #game-area { flex: 1; display: flex; justify-content: center; align-items: center; perspective: 1400px; position: relative; }
+    .poker-table { width: 960px; height: 480px; background: var(--table-felt); border-radius: 240px; position: relative; border: 14px solid var(--table-border); box-shadow: 0 50px 120px rgba(0,0,0,0.9); z-index: 5; transition: all 0.8s ease; }
+    .table-line { position: absolute; top: 35px; bottom: 35px; left: 35px; right: 35px; border: 1px solid rgba(255,255,255,0.03); border-radius: 210px; pointer-events: none; }
+    .center-area { position: absolute; top: 46%; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 5; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+    .pot-wrapper { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.3); padding: 8px 16px; border-radius: 30px; border: 1px solid rgba(255,255,255,0.05); }
+    .center-chip-icon { width: 28px; height: 28px; background: radial-gradient(circle at 30% 30%, #fbbf24, #b45309); border-radius: 50%; border: 2px dashed rgba(255,255,255,0.4); box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
+    .pot-val { font-size: 32px; font-weight: 800; color: var(--accent-gold); text-shadow: 0 0 30px rgba(251, 191, 36, 0.3); }
+    #game-status-text { font-size: 11px; color: var(--text-gray); font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-top: 5px; }
+    
+    /* SEATS */
+    .seat { position: absolute; width: 100px; height: 140px; display: flex; flex-direction: column; align-items: center; transition: all 0.5s; }
+    .seat[data-pos="0"] { bottom: -55px; left: 50%; transform: translateX(-50%); z-index: 100; scale: 1.15; }
+    .seat[data-pos="1"] { bottom: 5px; left: 12%; } .seat[data-pos="2"] { top: 20%; left: -60px; } .seat[data-pos="3"] { top: -75px; left: 28%; }
+    .seat[data-pos="4"] { top: -75px; right: 28%; } .seat[data-pos="5"] { top: 20%; right: -60px; } .seat[data-pos="6"] { bottom: 5px; right: 12%; }
+    .seat.folded { opacity: 0.5; filter: grayscale(100%); transform: scale(0.95); pointer-events: none; }
+    .seat.spectator { opacity: 0.6; pointer-events: none; }
+    .seat.empty-seat { width: 74px; height: 74px; border-radius: 50%; background: rgba(255, 255, 255, 0.02); border: 2px dashed rgba(255, 255, 255, 0.15); display: flex; justify-content: center; align-items: center; }
+    .seat.empty-seat::after { content: '+'; color: rgba(255,255,255,0.3); font-size: 28px; font-weight: 200; }
+    
+    /* AVATAR & HUD */
+    .avatar-container { position: relative; width: 74px; height: 74px; padding: 4px; background: #1e293b; border-radius: 50%; box-shadow: 0 10px 25px rgba(0,0,0,0.6); z-index: 30; transition: transform 0.3s; cursor: pointer; }
+    .avatar-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; background: #0f172a; display: block; }
+    .seat.active .avatar-container { transform: scale(1.1); box-shadow: 0 0 30px rgba(16, 185, 129, 0.3); }
+    .seat.winner { z-index: 300 !important; }
+    .seat.winner .avatar-container { transform: scale(1.25); border: 3px solid #fbbf24; box-shadow: 0 0 0 2px #fff, 0 0 50px rgba(251, 191, 36, 0.8); animation: winnerPulse 2s infinite; }
+    @keyframes winnerPulse { 0%, 100% { box-shadow: 0 0 0 2px #fff, 0 0 30px rgba(251, 191, 36, 0.5); } 50% { box-shadow: 0 0 0 2px #fff, 0 0 60px rgba(251, 191, 36, 0.8); } }
+    .timer-svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(90deg) scaleX(-1); overflow: visible; pointer-events: none; z-index: 50; opacity: 0; transition: opacity 0.3s; }
+    .seat.active .timer-svg { opacity: 1; }
+    .timer-track { fill: none; stroke: rgba(0, 0, 0, 0.5); stroke-width: 4; }
+    .timer-circle { fill: none; stroke-width: 4; stroke-linecap: round; stroke-dasharray: 220; stroke-dashoffset: 220; transition: none; }
+    .bet-pill { position: absolute; background: #0f172a; border: 1px solid #334155; padding: 4px 8px; border-radius: 12px; display: flex; align-items: center; gap: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.5); z-index: 60; opacity: 0; transition: 0.3s; top: -45px; left: 50%; transform: translateX(-50%) scale(0.8); pointer-events: none; }
+    .seat.has-bet .bet-pill { opacity: 1; transform: translateX(-50%) scale(1); }
+    .bet-chip-icon { width: 14px; height: 14px; background: radial-gradient(#ef4444, #991b1b); border-radius: 50%; }
+    .bet-text { font-size: 11px; font-weight: 800; color: #fff; }
+    .eye-hud { position: absolute; top: -5px; right: -5px; width: 24px; height: 24px; background: var(--glass-bg); backdrop-filter: blur(4px); border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid var(--glass-border); z-index: 40; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+    .seat.seen-status .eye-hud { background: rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.5); }
+    .dealer-chip { position: absolute; width: 30px; height: 30px; background: linear-gradient(135deg, #ffffff, #e2e8f0); color: #0f172a; border-radius: 50%; font-size: 14px; font-weight: 900; display: none; align-items: center; justify-content: center; box-shadow: 0 4px 8px rgba(0,0,0,0.5); z-index: 25; bottom: 0; right: -30px; }
+    .seat.is-dealer .dealer-chip { display: flex; animation: chipPop 0.4s ease; }
+    @keyframes chipPop { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+    .player-info { background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255,255,255,0.08); backdrop-filter: blur(4px); padding: 4px 12px; border-radius: 12px; text-align: center; margin-top: -14px; min-width: 90px; position: relative; z-index: 40; }
+    .p-name { font-size: 10px; color: var(--text-gray); font-weight: 700; text-transform: uppercase; }
+    .p-money { display: flex; align-items: center; justify-content: center; font-size: 12px; color: white; font-weight: 800; }
+    .currency-chip { display: inline-block; width: 14px; height: 14px; background: radial-gradient(circle, #fbbf24 40%, #b45309 95%); border-radius: 50%; margin-right: 4px; }
+
+    /* --- 9. CARDS & PHYSICS (MOCKUP FINAL FIX) --- */
+    .hand-cards {
+        display: flex; position: absolute; top: 95px; z-index: 10; 
+        transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+        justify-content: center; width: 100px; perspective: 800px; pointer-events: auto;
+        cursor: pointer;
+    }
+    
+    .seat[data-pos="0"] .hand-cards { top: 100px; scale: 1.25; z-index: 50; }
+    
+    /* Lățirea containerului la click */
+    .hand-cards.revealed { width: 160px; z-index: 200 !important; }
+
+    /* Tremurat */
+    .hand-cards.shaking { animation: jiggle 0.4s ease-in-out; }
+    .hand-cards.jiggle { animation: jiggle 0.5s ease; }
+    @keyframes jiggle { 
+        0%, 100% { transform: translateX(0) rotate(0deg); } 
+        25% { transform: translateX(-4px) rotate(-3deg); } 
+        50% { transform: translateX(4px) rotate(3deg); } 
+        75% { transform: translateX(-4px) rotate(-3deg); } 
+        100% { transform: translateX(0); } 
+    }
+
+    .card { 
+        width: 40px; height: 58px; position: relative; margin-left: -18px; 
+        transform-style: preserve-3d;
+        transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), margin 0.4s ease;
+        transform-origin: bottom center; opacity: 1; cursor: pointer;
+    }
+    
+    .card.dealt { opacity: 1 !important; }
+    .card:first-child { margin-left: 0; }
+
+    /* --- LOGICA HOVER --- */
+    /* IMPORTANT: Hover merge DOAR dacă NU sunt dezvăluite */
+    .hand-cards:not(.revealed) .card:hover { 
+        /* Se ridică puțin dar își păstrează rotația din evantai */
+        z-index: 100 !important; 
+        /* Aici folosim transformarea curentă + ridicare */
+    }
+    /* Specific pentru fiecare carte la hover ca să nu se îndrepte brusc */
+    .hand-cards:not(.revealed) .card:nth-child(1):hover { transform: translateY(-15px) rotate(-12deg) scale(1.1) !important; }
+    .hand-cards:not(.revealed) .card:nth-child(2):hover { transform: translateY(-15px) rotate(0deg) scale(1.1) !important; }
+    .hand-cards:not(.revealed) .card:nth-child(3):hover { transform: translateY(-15px) rotate(12deg) scale(1.1) !important; }
+
+    /* Poziții Evantai Standard */
+    .card:nth-child(1) { transform: rotate(-12deg); }
+    .card:nth-child(2) { z-index: 2; transform: translateY(-4px); }
+    .card:nth-child(3) { transform: rotate(12deg); }
+
+    /* --- LOGICA PENTRU CÂND DAI CLICK (REVEALED) --- */
+    
+    /* 1. Resetare la poziție dreaptă */
+    .hand-cards.revealed .card { 
+        margin-left: 6px; 
+        transform: rotate(0deg) translateY(-20px) !important; 
+    }
+    .hand-cards.revealed .card:first-child { margin-left: 0; }
+
+    /* 2. Întoarcere (Flip) */
+    .hand-cards.revealed .card.flipped { 
+        z-index: 300 !important;
+        /* Am scos scale-ul uriaș. Rămâne doar rotateY */
+        transform: rotateY(180deg) translateY(-20px) !important; 
+        box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+    }
+
+    /* Card Faces */
+    .card-face {
+        position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 5px;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        font-weight: 800; font-size: 15px; border: 1px solid rgba(0,0,0,0.1);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.4); background: white;
+    }
+    .card-back {
+        background: var(--accent-red); border: 2px solid white;
+        background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,0.1) 5px, rgba(255,255,255,0.1) 10px);
+        z-index: 2; transform: rotateY(0deg);
+    }
+    .card-front { transform: rotateY(180deg); color: #1e293b; z-index: 1; }
+    .card-front.red { color: #d93025; }
+
+  
+    /* --- CSS FOLD OBLIGATORIU --- */
+    .thrown-card {
+        position: fixed !important;
+        z-index: 99999 !important; 
+        width: 40px !important; 
+        height: 58px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        transition: none !important;
+        pointer-events: none;
+        transform-style: preserve-3d;
+        backface-visibility: visible;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        transform-origin: center center !important;
+    }
+
+
+    /* --- FIX ANIMATIE CHIP (OBLIGATORIU) --- */
+.flying-chip {
+    position: fixed !important;
+    z-index: 2147483647 !important; /* Maximul admis de browser */
+    width: 30px !important; 
+    height: 30px !important;
+    
+    /* Design vizibil (Gradient Gold) */
+    background: radial-gradient(circle at 30% 30%, #fde047, #b45309);
+    border: 2px dashed #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.8); /* Glow galben */
+    
+    pointer-events: none;
+    transform-origin: center center;
+    will-change: transform, left, top;
+}
+    /* ACTION ANIMATIONS */
+    .action-text { position: absolute; top: -65px; left: 50%; transform: translateX(-50%); font-size: 12px; font-weight: 800; background: rgba(0,0,0,0.8); backdrop-filter: blur(4px); padding: 4px 10px; border-radius: 8px; z-index: 150; animation: floatUp 1.2s forwards; border: 1px solid rgba(255,255,255,0.2); }
+    .action-text.fold { color: var(--accent-red); } .action-text.raise { color: var(--accent-green); } .action-text.call { color: var(--accent-blue); } 
+    .action-text.win { background: linear-gradient(135deg, #fbbf24, #d97706); color: #0f172a; top: -85px; font-size: 14px; border: 2px solid #fff; box-shadow: 0 5px 20px rgba(251, 191, 36, 0.4); }
+    @keyframes floatUp { 0% { opacity: 0; transform: translate(-50%, 10px); } 100% { opacity: 0; transform: translate(-50%, -30px); } }
+   /* .flying-chip { position: absolute; width: 24px; height: 24px; background: radial-gradient(circle at 30% 30%, #fde047, #b45309); border: 2px dashed rgba(255,255,255,0.9); border-radius: 50%; z-index: 200; pointer-events: none; opacity: 0; } */
+    .flying-card { position: fixed; width: 40px; height: 58px; z-index: 9999; pointer-events: none; border-radius: 5px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); background: var(--accent-red); border: 2px solid white; background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,0.1) 5px, rgba(255,255,255,0.1) 10px); }
+    .gold-particle { position: absolute; width: 4px; height: 4px; background: #fff; box-shadow: 0 0 4px #fbbf24, 0 0 8px #d97706; border-radius: 50%; pointer-events: none; z-index: 290; }
+
+    /* CONTROLS */
+    .controls-wrapper { position: fixed; bottom: 30px; right: 30px; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; z-index: 500; }
+    .raise-control-container { display: flex; gap: 12px; align-items: flex-end; }
+    .btn-game { height: 56px; padding: 0 24px; border-radius: 16px; border: none; font-size: 14px; font-weight: 800; color: white; cursor: pointer; box-shadow: 0 6px 0 rgba(0,0,0,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; transition: 0.1s; min-width: 80px; }
+    .btn-game:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,0.4); }
+    .btn-game:disabled { opacity: 0.5; filter: grayscale(1); cursor: not-allowed; }
+    .btn-fold { background: linear-gradient(to bottom, #ef4444, #991b1b); }
+    .btn-call { background: linear-gradient(to bottom, #3b82f6, #1e40af); }
+    .btn-raise { background: linear-gradient(to bottom, #10b981, #047857); }
+    .raise-slider-wrapper { position: absolute; bottom: 70px; right: 0; width: 60px; height: 200px; background: rgba(15, 23, 42, 0.95); border-radius: 30px; display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transform: translateY(20px); transition: 0.3s; z-index: 1; border: 1px solid rgba(255,255,255,0.1); }
+    .raise-slider-wrapper.open { opacity: 1; pointer-events: auto; transform: translateY(0); }
+    input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; cursor: pointer; transform: rotate(-90deg); width: 140px; height: 40px; }
+    .slider-value { position: absolute; top: -40px; background: #10b981; color: white; padding: 4px 8px; border-radius: 8px; font-weight: 800; }
+
+    /* VOTING & CHAT */
+    #voting-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+    /* --- CHAT WIDGET PROFESIONAL (GLASSMORPHISM) --- */
+/* --- CHAT TRANSPARENT & PROFESIONAL --- */
+.chat-widget {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    width: 350px;
+    height: 250px;
+    display: flex;
+    flex-direction: column;
+    z-index: 90;
+    pointer-events: none; /* Lasă click-urile să treacă prin zona goală */
+}
+
+/* Zona de mesaje - Doar textul e vizibil */
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    /* Ascundem scrollbar-ul vizual dar păstrăm funcția */
+    scrollbar-width: none; 
+    pointer-events: auto; /* Activează scroll și click pe mesaje */
+    
+    /* Text Shadow puternic pentru contrast pe masa de joc */
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9), 0 0 5px rgba(0,0,0,0.5);
+    font-size: 13px;
+    font-weight: 600;
+}
+.chat-messages::-webkit-scrollbar { display: none; }
+
+/* Liniile de chat */
+.chat-msg-line {
+    margin-bottom: 6px;
+    display: flex;
+    align-items: flex-start;
+    animation: fadeChat 0.3s ease-out;
+}
+@keyframes fadeChat { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+.chat-user-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: 6px;
+    white-space: nowrap;
+}
+
+.chat-user { 
+    color: #3b82f6; 
+    cursor: pointer; 
+    font-weight: 800;
+}
+.chat-user:hover { text-decoration: underline; color: #60a5fa; }
+
+/* Butonul MIC de Mute de lângă nume */
+.btn-mini-mute {
+    font-size: 10px;
+    color: rgba(255,255,255,0.4);
+    cursor: pointer;
+    padding: 2px;
+    transition: 0.2s;
+}
+.btn-mini-mute:hover { color: #ef4444; transform: scale(1.2); }
+
+.chat-text { color: #f1f5f9; line-height: 1.4; }
+.chat-sys { color: #ef4444; font-weight: 800; margin-right: 5px; }
+
+/* Zona de Input - Semi-transparentă ca să o vezi */
+.chat-input-area {
+    display: flex;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.6); /* Negru semi-transparent */
+    backdrop-filter: blur(4px);
+    padding: 6px 8px;
+    border-radius: 30px;
+    border: 1px solid rgba(255,255,255,0.1);
+    pointer-events: auto;
+    gap: 6px;
+    margin-top: 5px;
+    transition: 0.3s;
+}
+.chat-widget:hover .chat-input-area {
+    background: rgba(0, 0, 0, 0.8);
+    border-color: rgba(255,255,255,0.3);
+}
+
+.chat-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 13px;
+    outline: none;
+    padding: 4px 8px;
+}
+
+/* Butoane (Emoji & Send) */
+.chat-btn {
+    background: rgba(255,255,255,0.1);
+    border: none;
+    color: #cbd5e1;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: 0.2s;
+}
+.chat-btn:hover { background: rgba(255,255,255,0.2); color: white; transform: scale(1.1); }
+.chat-btn.send { background: #3b82f6; color: white; }
+.chat-btn.send:hover { background: #2563eb; }
+
+/* Emoji Picker - Poziționat deasupra */
+.emoji-picker {
+    position: absolute;
+    bottom: 60px;
+    left: 0;
+    width: 100%;
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 12px;
+    padding: 10px;
+    display: none;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 5px;
+    z-index: 100;
+}
+.emoji-picker.open { display: grid; }
+.emoji-item { cursor: pointer; text-align: center; font-size: 18px; padding: 4px; border-radius: 4px; }
+.emoji-item:hover { background: rgba(255,255,255,0.2); }
+
+/* =========================================
+       9. FOOTER INFO (NOU)
+       ========================================= */
+    .info-pill {
+        position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(8px);
+        border: 1px solid rgba(255,255,255,0.05); padding: 6px 16px; border-radius: 20px;
+        display: flex; gap: 20px; align-items: center; z-index: 100; pointer-events: none;
+    }
+    .info-item { font-family: 'Roboto Mono', monospace; font-size: 10px; color: var(--text-gray); text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
+    .info-item span { color: white; font-weight: 600; }
+    .dot-status { width: 6px; height: 6px; background: var(--accent-green); border-radius: 50%; box-shadow: 0 0 5px var(--accent-green); }
+</style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="logo">AION <span>SEKA</span></div>
+        <div class="header-controls">
+            <button class="btn-circle-glass" onclick="window.doAction('LEAVE')"><i class="fas fa-sign-out-alt"></i></button>
+        </div>
+    </div>
+
+    <div class="chat-widget">
+        <div class="chat-messages" id="chat-box">
+            <div class="chat-msg-line">
+                <span class="chat-sys">SYSTEM:</span> 
+                <span class="chat-text">Chat transparent activat.</span>
+            </div>
+        </div>
+        
+        <div class="emoji-picker" id="emoji-picker">
+            <div class="emoji-item" onclick="addEmoji('😎')">😎</div>
+            <div class="emoji-item" onclick="addEmoji('🤑')">🤑</div>
+            <div class="emoji-item" onclick="addEmoji('🤬')">🤬</div>
+            <div class="emoji-item" onclick="addEmoji('🤔')">🤔</div>
+            <div class="emoji-item" onclick="addEmoji('😂')">😂</div>
+            <div class="emoji-item" onclick="addEmoji('🤫')">🤫</div>
+            <div class="emoji-item" onclick="addEmoji('🤡')">🤡</div>
+            <div class="emoji-item" onclick="addEmoji('👀')">👀</div>
+            <div class="emoji-item" onclick="addEmoji('💰')">💰</div>
+            <div class="emoji-item" onclick="addEmoji('🔥')">🔥</div>
+            <div class="emoji-item" onclick="addEmoji('🍀')">🍀</div>
+            <div class="emoji-item" onclick="addEmoji('👋')">👋</div>
+            <div class="emoji-item" onclick="addEmoji('🦈')">🦈</div>
+            <div class="emoji-item" onclick="addEmoji('🍺')">🍺</div>
+            <div class="emoji-item" onclick="addEmoji('❌')">❌</div>
+            <div class="emoji-item" onclick="addEmoji('✅')">✅</div>
+        </div>
+
+        <div class="chat-input-area">
+            <button class="chat-btn" onclick="toggleEmojiPicker()">
+                <i class="far fa-smile"></i>
+            </button>
+            
+            <input type="text" class="chat-input" id="chat-input" placeholder="Mesaj..." autocomplete="off" onkeypress="if(event.key==='Enter') sendMessage()">
+            
+            <button class="chat-btn send" onclick="sendMessage()">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="game-area">
+        <div class="poker-table" id="main-table">
+            <div class="table-line"></div>
+            <div class="center-area" id="center-pot-area">
+                <div class="pot-wrapper">
+                    <div class="center-chip-icon"></div>
+                    <div class="pot-val"><span id="pot-amount">0</span></div>
+                </div>
+                <div id="game-status-text">WAITING...</div>
+            </div>
+            <div id="seats-container"></div>
+        </div>
+
+        <div id="voting-overlay">
+            <h1 id="vote-title" style="font-size:40px; color:#fbbf24; text-transform:uppercase; margin-bottom:20px; text-shadow:0 0 20px rgba(251, 191, 36, 0.5);">VOTEAZĂ</h1>
+            <div style="font-size:18px; color:#fff; margin-bottom:30px;" id="vote-desc">Participi la runda specială?</div>
+            <div style="display:flex; gap:20px;">
+                <button class="btn-game" style="background:#ef4444; width:100px;" onclick="window.sendVote('NO')">NU</button>
+                <button class="btn-game" style="background:#10b981; width:100px;" onclick="window.sendVote('YES')">DA</button>
+            </div>
+            <div id="vote-timer" style="margin-top:20px; font-size:24px; font-weight:800; color:#fff;">10</div>
+        </div>
+    </div>
+
+    <div class="controls-wrapper">
+        <div class="raise-control-container">
+            <div class="raise-slider-wrapper" id="raise-slider-popup">
+                <div class="slider-value" id="slider-val-display">100</div>
+                <input type="range" id="raise-range" min="50" max="5000" step="50" value="100" oninput="updateSliderVal(this.value)">
+            </div>
+            
+            <button class="btn-game btn-showdown" id="btn-showdown" style="display:none; background: linear-gradient(135deg, #8b5cf6, #6d28d9);" onclick="window.doAction('SHOWDOWN')">SHOW</button>
+            <button class="btn-game btn-fold" id="btn-fold" onclick="window.doAction('FOLD')">FOLD</button>
+            <button class="btn-game btn-call" id="btn-call" onclick="window.doAction('CALL')"><span>CALL</span></button>
+            <button class="btn-game btn-raise" id="btn-raise" onclick="window.doAction('RAISE')">RAISE</button>
+        </div>
+    </div>
+     <div class="info-pill">
+        <div class="info-item"><div class="dot-status"></div> Live</div>
+        <div class="info-item">Server: <span>EU-1</span></div>
+        <div class="info-item">ID: <span>#8842</span></div>
+    </div>
+
+<script>
+    console.log("🚀 AION SEKA: FINAL FIXED VERSION");
+    const socket = io({ transports: ['websocket', 'polling'], path: '/socket.io' });
+
+    let appState = {
+        myUsername: null, roomId: null,
+        game: { players: [], gameState: 'WAITING', pot: 0, currentTurn: null, dealer: null, winner: null, voteMode: null, canShowdown: false },
+        myCards: [], revealedHands: {}, 
+        ui: { isAnimatingDeal: false, areMyCardsFlipped: false, selectedRaise: 100 }
+    };
+
+    try {
+        const storedUser = sessionStorage.getItem('seka_user');
+        appState.roomId = sessionStorage.getItem('current_room_id');
+        if (storedUser) appState.myUsername = JSON.parse(storedUser).username;
+    } catch(e) {}
+    if (!appState.myUsername || !appState.roomId) window.location.href = 'index.html';
+
+    const seatsContainer = document.getElementById('seats-container');
+    seatsContainer.innerHTML = ''; 
+    for(let i=0; i<7; i++) seatsContainer.insertAdjacentHTML('beforeend', createSeatHTML(i));
+
+    socket.on('connect', () => { socket.emit('join_room', { roomId: appState.roomId, username: appState.myUsername }); });
+    
+    // --- VARIABILĂ GLOBALĂ PENTRU ISTORIC ---
+    // (Pune asta imediat după let appState = { ... })
+    let previousFoldedPlayers = []; 
+
+    // --- FUNCȚIA GAME STATE COMPLETĂ ---
+    socket.on('game_state', (data) => {
+        // 1. DETECTARE FOLD MANUALĂ (FIX PENTRU ANIMAȚIE)
+        // Verificăm dacă cineva a dat fold de la ultimul update
+        if (appState.game && appState.game.players) {
+            data.players.forEach(p => {
+                // Verificăm dacă jucătorul era deja foldat în state-ul anterior
+                const wasFolded = previousFoldedPlayers.includes(p.username);
+                
+                // CONDIȚIA MAGICĂ:
+                // E foldat ACUM + NU era foldat ÎNAINTE + Jocul e ACTIV
+                if (p.isFolded && !wasFolded && appState.game.gameState === 'ACTIVE') {
+                    console.log(`🕵️ DETECTAT FOLD DIN STATE: ${p.username}`);
+                    
+                    const idx = getVisualIndex(p.username);
+                    
+                    // A. Arătăm textul "FOLD"
+                    showGameAction(idx, "FOLD", "fold");
+                    
+                    // B. Declanșăm animația de aruncare a cărților
+                    // (Folosind funcția robustă care pleacă de la Avatar)
+                    muckCardsAnimation(idx);
+                }
+            });
+            
+            // Actualizăm lista pentru următorul update
+            previousFoldedPlayers = data.players.filter(p => p.isFolded).map(p => p.username);
+        }
+
+        // 2. RESETARE LA JOC NOU (WAITING)
+        // Dacă trecem din joc activ în așteptare, curățăm tot
+        if (appState.game.gameState !== 'WAITING' && data.gameState === 'WAITING') {
+            console.log("🔄 JOC NOU - RESETARE TABLĂ");
+            
+            appState.revealedHands = {}; 
+            appState.myCards = []; 
+            appState.ui.areMyCardsFlipped = false; 
+            previousFoldedPlayers = []; // Resetăm istoricul de fold
+            
+            // Curățăm efectele vizuale
+            resetTableEffects();
+            document.querySelectorAll('.hand-cards').forEach(el => {
+                el.innerHTML = '';
+                el.className = 'hand-cards'; // Scoatem clasele revealed/jiggle
+                delete el.dataset.hasData;
+                delete el.dataset.flipped;
+            });
+            
+            // Ștergem orice carte aruncată rămasă pe ecran
+            document.querySelectorAll('.thrown-card').forEach(el => el.remove());
+        }
+
+        // 3. ACTUALIZARE STATE GLOBAL
+        appState.game = data; 
+
+        // 4. RANDARE UI
+        renderBoard();      // Desenează avatare, bani, cărți
+        updateControls();   // Butoane (Fold, Call, Raise)
+        handleVotingUI();   // Overlay de votare (Svara/Samovar)
+    });
+
+    socket.on('your_cards', (cards) => { appState.myCards = cards || []; if(!appState.ui.isAnimatingDeal) renderBoard(); });
+    
+    // EVENIMENTE DEZVALUIRE (SHOWDOWN / FLEX)
+    socket.on('showdown_reveal', (data) => {
+        console.log("🔥 SHOWDOWN/FLEX REVEAL:", data.username);
+        appState.revealedHands[data.username] = data.hand; 
+        renderBoard(); 
+    });
+
+    socket.on('reveal_single_hand', (data) => {
+        appState.revealedHands[data.username] = data.hand; renderBoard();
+        setTimeout(() => { if(appState.game.gameState === 'ACTIVE') { delete appState.revealedHands[data.username]; renderBoard(); } }, 3000);
+    });
+
+    socket.on('animate_deal', async (data) => {
+        // RESET TOTAL INAINTE DE DEAL
+        appState.ui.isAnimatingDeal = true; 
+        appState.revealedHands = {}; 
+        appState.myCards = []; 
+        appState.ui.areMyCardsFlipped = false;
+        document.querySelectorAll('.hand-cards').forEach(el => el.innerHTML = ''); // CURATARE DOM
+        await dealSequenceAnimation(data.dealer); 
+        appState.ui.isAnimatingDeal = false; 
+        renderBoard();
+    });
+
+    socket.on('round_winner', (data) => { const idx = getVisualIndex(data.winner); triggerWinEffects(idx); showGameAction(idx, `WIN ${data.amount}`, 'win'); });
+   socket.on('action_anim', (d) => {
+        // Obținem indexul vizual
+        const idx = getVisualIndex(d.username);
+        
+        // Afișăm textul (BET, FOLD, CALL) - Asta e ok să rămână aici pt viteză
+        let text = d.type.toUpperCase();
+        if (d.amount) text += ` ${d.amount}`;
+        showGameAction(idx, text, d.type);
+
+        const type = d.type.toLowerCase();
+
+        // --- MODIFICARE AICI ---
+        if (type === 'fold') {
+            // NU mai apelăm muckCardsAnimation(idx) aici!
+            // Lăsăm game_state să detecteze și să animeze fold-ul.
+            console.log(`📨 Event FOLD primit pentru ${d.username} (Animatia va fi gestionată de Game State)`);
+        }
+        else if (['bet', 'call', 'raise'].includes(type)) {
+            // Cipurile le lăsăm aici, e ok
+            animateChip(idx);
+        }
+    });
+    socket.on('msg_error', (msg) => addChatMessage("EROARE", msg, true));
+    socket.on('msg_system', (msg) => addChatMessage("INFO", msg, true));
+    socket.on('receive_chat', (d) => addChatMessage(d.username, d.text, false));
+
+    function getVisualIndex(uname) {
+        if (!uname || !appState.game.players.length) return -1;
+        const myIdx = appState.game.players.findIndex(p => p.username === appState.myUsername);
+        const targetIdx = appState.game.players.findIndex(p => p.username === uname);
+        // FIX SUPRAPUNERE: Daca myIdx e -1 (eroare), fallback la targetIdx pentru a nu suprapune pe 0
+        if (targetIdx === -1) return -1; 
+        if (myIdx === -1) return targetIdx;
+        return (targetIdx - myIdx + 7) % 7;
+    }
+
+    function renderBoard() {
+        document.getElementById('pot-amount').innerText = appState.game.pot;
+        let statusText = appState.game.gameState;
+        if(appState.game.gameState === 'VOTING') statusText = `VOTE: ${appState.game.voteMode}`;
+        if(appState.game.gameState === 'SHOWDOWN') statusText = "SHOWDOWN!";
+        document.getElementById('game-status-text').innerText = statusText;
+
+        const activeUsers = appState.game.players.map(p => p.username);
+        document.querySelectorAll('.seat').forEach(seat => { if (seat.dataset.username && !activeUsers.includes(seat.dataset.username)) resetSeatToEmpty(seat); });
+
+        appState.game.players.forEach(p => {
+            const idx = getVisualIndex(p.username);
+            const seat = document.querySelector(`.seat[data-pos="${idx}"]`);
+            if(seat) updateSeatUI(seat, p);
+        });
+    }
+
+    function updateSeatUI(seat, p) {
+        // --- 1. SETUP ELEMENTE DE BAZĂ ---
+        seat.classList.remove('empty-seat'); 
+        seat.dataset.username = p.username;
+        seat.classList.toggle('hero-seat', p.username === appState.myUsername);
+        seat.classList.toggle('folded', p.isFolded);
+        seat.classList.toggle('is-dealer', appState.game.dealer === p.username);
+        seat.classList.toggle('spectator', p.isSpectator);
+
+        // Timer Logic
+        if (appState.game.currentTurn === p.username && appState.game.gameState === 'ACTIVE' && seat.dataset.timerRunning !== 'true') { 
+            seat.classList.add('active'); 
+            startVisualTimer(seat); 
+        } else if (appState.game.currentTurn !== p.username) { 
+            seat.classList.remove('active'); 
+            stopVisualTimer(seat); 
+        }
+
+        // Info Player
+        seat.querySelector('.p-name').innerText = p.username;
+        seat.querySelector('.p-money').innerHTML = `<div class="currency-chip"></div>${p.chips}`;
+        
+        const img = seat.querySelector('.avatar-img');
+        if (!img.src || !img.src.includes(p.username)) { 
+            img.src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${p.username}`; 
+            img.style.display = 'block'; 
+            seat.querySelector('.player-info').style.display = 'flex'; 
+        }
+
+        // Bets & Vote HUD
+        const betPill = seat.querySelector('.bet-pill');
+        if (appState.game.gameState === 'VOTING' && p.voteStatus) {
+            betPill.style.opacity = '1'; 
+            seat.querySelector('.bet-val').innerText = p.voteStatus;
+            betPill.style.background = p.voteStatus === 'YES' ? '#10b981' : '#ef4444';
+        } else if (p.currentBet > 0) {
+            seat.classList.add('has-bet'); 
+            seat.querySelector('.bet-val').innerText = p.currentBet;
+            betPill.style.opacity = '1'; 
+            betPill.style.background = '#0f172a';
+        } else { 
+            seat.classList.remove('has-bet'); 
+            betPill.style.opacity = '0'; 
+        }
+
+        // Eye HUD
+        if (p.hasSeenCards) { 
+            seat.classList.add('seen-status'); 
+            seat.querySelector('.eye-hud').innerHTML = `<svg viewBox="0 0 24 24" style="fill:#3b82f6"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>`; 
+        } else { 
+            seat.classList.remove('seen-status'); 
+            seat.querySelector('.eye-hud').innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.82l2.92 2.92C21.04 15.33 22 13.77 22 12c0-5-7-9-10-9-1.25 0-2.43.25-3.53.7l3.08 3.08C11.17 7.05 11.58 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.65 10.03 1 12c0 5 7 9 10 9 1.55 0 2.98-.36 4.23-.96l.45.45L19.73 22 21 20.73 3.27 3 2 4.27z"/></svg>`; 
+        }
+
+        // --- 2. LOGICA WINNER STRICTĂ (AICI E FIX-UL) ---
+        // Doar dacă suntem în faza de decizie ȘI acest jucător este câștigătorul
+        if (appState.game.gameState === 'WINNER_DECISION' && appState.game.winner === p.username) {
+            seat.classList.add('winner');
+        } else {
+            // În orice altă situație, scoatem coroana forțat
+            seat.classList.remove('winner');
+        }
+
+        // --- 3. LOGICA CĂRȚI (Rămâne neschimbată, doar am condensat-o vizual aici) ---
+        if (!appState.ui.isAnimatingDeal) {
+            const handDiv = seat.querySelector('.hand-cards');
+            const shouldShow = (!p.isFolded && !p.isSpectator && appState.game.gameState !== 'WAITING');
+
+            if (shouldShow) {
+                let cardsToRender = [{},{},{}];
+                let hasRealData = false;
+                if (appState.revealedHands[p.username]) { cardsToRender = appState.revealedHands[p.username]; hasRealData = true; } 
+                else if (p.username === appState.myUsername && appState.myCards.length > 0) { cardsToRender = appState.myCards; if (cardsToRender[0].rank) hasRealData = true; }
+
+                const isLocalPeek = (p.username === appState.myUsername && appState.ui.areMyCardsFlipped);
+                const shouldBeRevealed = hasRealData && (isLocalPeek || appState.revealedHands[p.username]);
+
+                if (handDiv.children.length === 0 || (hasRealData && handDiv.dataset.hasData !== 'true')) {
+                    handDiv.innerHTML = generateCardsHTML(cardsToRender, p.username);
+                    handDiv.dataset.hasData = hasRealData ? 'true' : 'false';
+                    setTimeout(() => Array.from(handDiv.children).forEach(c => c.classList.add('dealt')), 10);
+                }
+
+                if (shouldBeRevealed) {
+                    handDiv.classList.add('revealed');
+                    Array.from(handDiv.children).forEach(c => c.classList.add('flipped'));
+                } else {
+                    handDiv.classList.remove('revealed');
+                    Array.from(handDiv.children).forEach(c => c.classList.remove('flipped'));
+                }
+            } else {
+                if(handDiv.children.length > 0) { handDiv.innerHTML = ''; delete handDiv.dataset.hasData; }
+            }
+        }
+    }
+    function generateCardsHTML(cards, ownerName) {
+        const suits = {'heart':'♥','diamond':'♦','club':'♣','spade':'♠'};
+        return cards.map((c, i) => {
+            const rot = i===0 ? -12 : i===1 ? 0 : 12; const y = i===1 ? -6 : 0;
+            const rank = c.rank || ''; const suit = suits[c.suit] || ''; const isRed = ['heart','diamond'].includes(c.suit)?'red':'';
+            const dRank = c.isJoker ? '7' : rank;
+            const isMe = ownerName === appState.myUsername;
+            return `<div class="card" onclick="${isMe ? 'handleMyCardClick(this)' : 'handleOpponentCardClick(this)'}" data-base-rot="${rot}" data-base-y="${y}" style="transform: rotate(${rot}deg) translateY(${y}px) rotateY(0deg)">
+                <div class="card-face card-back"></div>
+                <div class="card-face card-front ${isRed}">${dRank}<span>${suit}</span></div>
+            </div>`;
+        }).join('');
+    }
+
+    window.handleMyCardClick = (el) => {
+        appState.ui.areMyCardsFlipped = !appState.ui.areMyCardsFlipped;
+        const me = appState.game.players.find(p => p.username === appState.myUsername);
+        if (appState.ui.areMyCardsFlipped && me && !me.hasSeenCards) socket.emit('player_action', { roomId: appState.roomId, action: 'SEE_CARDS' });
+        const seat = document.querySelector(`.seat[data-pos="0"]`);
+        if(seat) updateSeatUI(seat, me);
+    }
+
+    window.handleOpponentCardClick = (el) => { const seat = el.closest('.seat'); window.handleAvatarClick(seat.dataset.pos); }
+
+    function updateControls() {
+        const me = appState.game.players.find(p => p.username === appState.myUsername); if (!me) return;
+        const isMyTurn = (appState.game.currentTurn === appState.myUsername && appState.game.gameState === 'ACTIVE');
+        const btns = ['btn-fold','btn-call','btn-raise','btn-showdown'].map(id=>document.getElementById(id));
+        btns.forEach(b => b.disabled = !isMyTurn);
+        document.getElementById('btn-showdown').style.display='none';
+
+        if (appState.game.gameState === 'WINNER_DECISION' && appState.game.winner === appState.myUsername) {
+            document.getElementById('btn-fold').style.display='none';
+            const bC=document.getElementById('btn-call'); bC.innerHTML="FLEX"; bC.onclick=()=>window.doAction('FLEX'); bC.disabled=false;
+            const bR=document.getElementById('btn-raise'); bR.innerHTML="SAMOVAR"; bR.onclick=()=>window.doAction('INIT_SAMOVAR'); bR.disabled=false;
+        } else {
+            document.getElementById('btn-fold').style.display='flex';
+            const bC=document.getElementById('btn-call'); bC.onclick=()=>window.doAction('CALL');
+            bC.innerHTML = me.callAmount > 0 ? `<span>CALL</span><span style="font-size:10px;">$${me.callAmount}</span>` : `<span>CHECK</span>`;
+            
+            const bR=document.getElementById('btn-raise'); bR.onclick=()=>window.doAction('RAISE');
+            bR.innerHTML = me.hasSeenCards ? "RAISE" : "BLIND RAISE";
+
+            if (isMyTurn && appState.game.canShowdown) {
+                const bS=document.getElementById('btn-showdown'); bS.style.display='flex'; bS.onclick=()=>window.doAction('SHOWDOWN'); bS.disabled=false;
+            }
+        }
+    }
+
+    function handleVotingUI() {
+        const overlay = document.getElementById('voting-overlay');
+        const me = appState.game.players.find(p => p.username === appState.myUsername);
+        if (appState.game.gameState === 'VOTING' && me && !me.isSpectator && me.voteStatus === null) {
+            overlay.style.display = 'flex';
+            document.getElementById('vote-title').innerText = appState.game.voteMode;
+            startVotingTimer(10);
+        } else {
+            overlay.style.display = 'none';
+        }
+    }
+
+    window.doAction = (type) => {
+        const me = appState.game.players.find(p => p.username === appState.myUsername);
+        let payload = { roomId: appState.roomId, action: type };
+        if (type === 'CALL') { payload.action = 'BET'; payload.amount = me.callAmount || 0; } 
+        else if (type === 'RAISE') {
+            const slider = document.getElementById('raise-slider-popup');
+            if (!slider.classList.contains('open')) { slider.classList.add('open'); return; }
+            payload.action = 'BET'; payload.amount = parseInt(appState.ui.selectedRaise); slider.classList.remove('open');
+        }
+        socket.emit('player_action', payload);
+    };
+
+    window.sendVote = (val) => { socket.emit('player_action', { roomId: appState.roomId, action: 'VOTE', vote: val }); document.getElementById('voting-overlay').style.display = 'none'; };
+    window.handleAvatarClick = (pos) => {
+        const target = document.querySelector(`.seat[data-pos="${pos}"]`).dataset.username;
+        if (!target || target === appState.myUsername || appState.game.currentTurn !== appState.myUsername) return;
+        const action = appState.game.canShowdown ? 'SHOWDOWN' : 'OPEN_PREVIOUS';
+        if(confirm(action==='SHOWDOWN'?`SHOWDOWN cu ${target}?`:`Vezi cărțile lui ${target}?`)) socket.emit('player_action', { roomId: appState.roomId, action });
+    };
+    window.updateSliderVal = (v) => { appState.ui.selectedRaise = v; document.getElementById('slider-val-display').innerText = v; document.getElementById('btn-raise').innerHTML = `CONFIRM<br><span style='font-size:10px'>$${v}</span>`; };
+
+    // --- HELPERS ---
+    function createSeatHTML(pos) { return `<div class="seat empty-seat" data-pos="${pos}"><div class="bet-pill"><div class="bet-chip-icon"></div><div class="bet-text"><span class="bet-val">0</span></div></div><div class="eye-hud"></div><div class="dealer-chip">D</div><div class="avatar-container" onclick="window.handleAvatarClick(${pos})"><svg class="timer-svg" viewBox="0 0 74 74"><circle class="timer-track" cx="37" cy="37" r="35"></circle><circle class="timer-circle" cx="37" cy="37" r="35"></circle></svg><img src="" class="avatar-img" style="display:none"></div><div class="player-info" style="display:none"><span class="p-name"></span><span class="p-money"></span></div><div class="hand-cards"></div></div>`; }
+    function resetSeatToEmpty(seat) { seat.className=`seat empty-seat`; seat.dataset.username=''; seat.querySelector('.avatar-img').style.display='none'; seat.querySelector('.player-info').style.display='none'; seat.querySelector('.hand-cards').innerHTML=''; seat.querySelector('.bet-pill').style.opacity='0'; stopVisualTimer(seat); }
+    // function resetTableEffects() { document.querySelectorAll('.seat').forEach(s => s.classList.remove('winner')); document.querySelectorAll('.gold-particle').forEach(p => p.remove()); appState.ui.selectedRaise = 100; document.getElementById('raise-slider-popup').classList.remove('open'); }
+    function resetTableEffects() {
+        console.log("🧹 Curățare efecte masă...");
+        
+        // 1. Scoate aura de câștigător de pe toți
+        document.querySelectorAll('.seat').forEach(s => {
+            s.classList.remove('winner'); // Critic
+            s.classList.remove('active');
+        });
+
+        // 2. Șterge particulele de aur
+        document.querySelectorAll('.gold-particle').forEach(p => p.remove());
+        
+        // 3. Șterge cărțile aruncate și cipurile
+        document.querySelectorAll('.thrown-card').forEach(p => p.remove());
+        document.querySelectorAll('.flying-chip').forEach(p => p.remove());
+
+        // 4. Reset UI
+        appState.ui.selectedRaise = 100;
+        const slider = document.getElementById('raise-slider-popup');
+        if(slider) slider.classList.remove('open');
+    }
+    async function dealSequenceAnimation(dealerName) {
+        const dealerIdx = getVisualIndex(dealerName); let startX = window.innerWidth/2, startY = window.innerHeight/2;
+        const s = document.querySelector(`.seat[data-pos="${dealerIdx}"]`); if(s) { const r = s.querySelector('.avatar-container').getBoundingClientRect(); startX=r.left+r.width/2; startY=r.top+r.height/2; }
+        const targets = []; appState.game.players.forEach(p => { if(!p.isSpectator && !p.isFolded) targets.push(getVisualIndex(p.username)); });
+        for(let r=0; r<3; r++) { for(let t of targets) { createFlyer(startX, startY, t, r); await new Promise(res=>setTimeout(res,80)); } }
+        await new Promise(res=>setTimeout(res,600));
+    }
+    function createFlyer(sx, sy, tIdx, cIdx) {
+        const ts = document.querySelector(`.seat[data-pos="${tIdx}"]`); if(!ts) return;
+        const tr = ts.getBoundingClientRect(); const dx = tr.left+50-20 + (cIdx-1)*15; const dy = tr.top+95;
+        const f = document.createElement('div'); f.className='flying-card'; f.style.left=sx+'px'; f.style.top=sy+'px'; document.body.appendChild(f);
+        f.animate([{transform:'scale(0.5)'},{transform:`translate(${dx-sx}px,${dy-sy}px) rotate(${(cIdx-1)*12}deg) scale(1)`}], {duration:500,fill:'forwards'}).onfinish=()=>f.remove();
+    }
+     //function animateChip(idx) { const seat=document.querySelector(`.seat[data-pos="${idx}"]`); if(!seat)return; const rect=seat.getBoundingClientRect(); const pot=document.getElementById('center-pot-area').getBoundingClientRect(); const c=document.createElement('div'); c.className='flying-chip'; c.style.left=(rect.left+37)+'px'; c.style.top=(rect.top+37)+'px'; c.style.opacity='1'; document.body.appendChild(c); const dx=(pot.left+20)-(rect.left+37); const dy=(pot.top+20)-(rect.top+37); c.animate([{transform:`translate(0,0) scale(1)`},{transform:`translate(${dx}px, ${dy}px) scale(0.8)`}], {duration:500,easing:'ease-out'}).onfinish=()=>c.remove(); }
+     //function muckCardsAnimation(idx) { const seat=document.querySelector(`.seat[data-pos="${idx}"]`); if(!seat)return; const hand=seat.querySelector('.hand-cards'); if(!hand)return; const r=hand.getBoundingClientRect(); const pot=document.getElementById('center-pot-area').getBoundingClientRect(); const d=document.createElement('div'); d.className='card-face card-back'; d.style.cssText=`position:fixed; left:${r.left}px; top:${r.top}px; width:40px; height:58px; z-index:200; border:2px solid white;`; document.body.appendChild(d); hand.innerHTML=''; d.animate([{transform:'translate(0,0) rotate(0deg)',opacity:1},{transform:`translate(${(pot.left+20)-r.left}px, ${(pot.top+20)-r.top}px) rotate(360deg) scale(0.5)`,opacity:0}], {duration:600}).onfinish=()=>d.remove(); }
+    function triggerWinEffects(idx) { const seat=document.querySelector(`.seat[data-pos="${idx}"]`); if(!seat)return; seat.classList.add('winner'); const r=seat.getBoundingClientRect(); const cx=r.left+37, cy=r.top+37; for(let i=0; i<30; i++) { const p=document.createElement('div'); p.className='gold-particle'; p.style.left=cx+'px'; p.style.top=cy+'px'; document.body.appendChild(p); const a=Math.random()*6.28; const d=50+Math.random()*150; p.animate([{transform:'translate(0,0)',opacity:1},{transform:`translate(${Math.cos(a)*d}px,${Math.sin(a)*d}px)`,opacity:0}], {duration:1000}).onfinish=()=>p.remove(); } }
+    function showGameAction(idx, text, type) { const seat=document.querySelector(`.seat[data-pos="${idx}"]`); if(!seat)return; const el=document.createElement('div'); el.className=`action-text ${type}`; el.innerText=text; seat.appendChild(el); setTimeout(()=>el.remove(), 2000); }
+    function startVisualTimer(seat) { seat.dataset.timerRunning='true'; const c=seat.querySelector('.timer-circle'); if(!c)return; let s=performance.now(); function t(n){ if(seat.dataset.timerRunning!=='true')return; const p=Math.min((n-s)/15000,1); c.style.strokeDashoffset=220*p; c.style.stroke=p>0.6?'#ef4444':'#10b981'; if(p<1)requestAnimationFrame(t);} requestAnimationFrame(t); }
+    function stopVisualTimer(seat) { const r=s=>{s.dataset.timerRunning='false'; const c=s.querySelector('.timer-circle'); if(c)c.style.strokeDashoffset=220;}; if(seat)r(seat); else document.querySelectorAll('.seat').forEach(r); }
+    let voteInt=null; function startVotingTimer(sec) { if(voteInt) clearInterval(voteInt); const el=document.getElementById('vote-timer'); let t=sec; el.innerText=t; voteInt=setInterval(()=>{t--;el.innerText=t;if(t<=0)clearInterval(voteInt);},1000); }
+    window.sendMessage = () => { const i=document.getElementById('chat-input'); if(i.value){socket.emit('send_chat',{roomId:appState.roomId,message:i.value});i.value='';} }
+    function addChatMessage(u, t, sys) { const b=document.getElementById('chat-box'); b.innerHTML+=`<div style="margin-bottom:4px;font-size:12px;"><span style="color:${sys?'#ef4444':'#3b82f6'};font-weight:800">${u}:</span> <span style="color:#cbd5e1">${t}</span></div>`; b.scrollTop=b.scrollHeight; }
+
+    function muckCardsAnimation(idx) {
+        console.log("🚀 START FOLD ANIMATION (Game State Trigger) -> SEAT:", idx);
+
+        const seat = document.querySelector(`.seat[data-pos="${idx}"]`);
+        if (!seat) return;
+
+        const avatar = seat.querySelector('.avatar-container');
+        if (!avatar) return;
+
+        const potElement = document.getElementById('center-pot-area');
+        if (!potElement) return;
+
+        // --- 1. CALCUL COORDONATE ---
+        const avatarRect = avatar.getBoundingClientRect();
+        const potRect = potElement.getBoundingClientRect();
+
+        const startY = avatarRect.bottom + 15; 
+        const startX = avatarRect.left + (avatarRect.width / 2) - 20;
+        const endX = potRect.left + (potRect.width / 2) - 20;
+        const endY = potRect.top + (potRect.height / 2) - 29;
+
+        // --- 2. ALEGE STILUL (Random 0-4) ---
+        const styleIdx = Math.floor(Math.random() * 5); 
+
+        // --- 3. GENERARE 3 CĂRȚI ---
+        for (let i = 0; i < 3; i++) {
+            const card = document.createElement('div');
+            card.classList.add('thrown-card'); // Clasa CSS cu !important
+
+            // Poziționare
+            const offsetX = (i - 1) * 15; 
+            const initialRotation = (i - 1) * 8;
+            
+            card.style.left = (startX + offsetX) + 'px';
+            card.style.top = startY + 'px';
+            card.style.transform = `rotate(${initialRotation}deg) scale(1)`;
+            
+            // Textura
+            card.innerHTML = `<div class="card-face card-back" style="width:100%; height:100%;"></div>`;
+
+            document.body.appendChild(card);
+
+            // Traiectorie
+            const scatterX = (Math.random() - 0.5) * 60; 
+            const scatterY = (Math.random() - 0.5) * 60;
+            const landRot = Math.random() * 360; 
+            const dX = endX - startX + scatterX - offsetX;
+            const dY = endY - startY + scatterY;
+
+            // Configurare Keyframes
+            let keyframes = [];
+            let options = { duration: 600, easing: 'cubic-bezier(0.25, 1, 0.5, 1)', fill: 'forwards', delay: i * 80 };
+
+            if (styleIdx === 0) { // Classic
+                keyframes = [
+                    { transform: `translate(0px, 0px) rotate(${initialRotation}deg) scale(1)`, opacity: 1 },
+                    { transform: `translate(${dX * 0.5}px, ${dY * 0.5 - 60}px) rotate(${initialRotation}deg) scale(1.1)`, opacity: 1, offset: 0.5 },
+                    { transform: `translate(${dX}px, ${dY}px) rotate(${landRot}deg) scale(0.8)`, opacity: 0 }
+                ];
+            } else if (styleIdx === 1) { // Slide
+                options.duration = 450; options.easing = 'ease-out';
+                keyframes = [
+                    { transform: `translate(0px, 0px) rotate(${initialRotation}deg) scale(1)`, opacity: 1 },
+                    { transform: `translate(${dX}px, ${dY}px) rotate(${landRot}deg) scale(0.9)`, opacity: 0 }
+                ];
+            } else if (styleIdx === 2) { // Helicopter
+                options.duration = 800;
+                keyframes = [
+                    { transform: `translate(0px, 0px) rotate(${initialRotation}deg) scale(1)`, opacity: 1 },
+                    { transform: `translate(${dX}px, ${dY}px) rotate(${initialRotation + 720}deg) scale(0.8)`, opacity: 0 }
+                ];
+            } else if (styleIdx === 3) { // High Lob
+                options.duration = 900;
+                keyframes = [
+                    { transform: `translate(0px, 0px) rotate(${initialRotation}deg) scale(1)`, opacity: 1 },
+                    { transform: `translate(${dX * 0.4}px, ${dY * 0.4 - 150}px) rotate(${initialRotation}deg) scale(1.3)`, opacity: 1, offset: 0.4 },
+                    { transform: `translate(${dX}px, ${dY}px) rotate(${landRot}deg) scale(0.7)`, opacity: 0 }
+                ];
+            } else { // Tumble
+                options.duration = 700;
+                keyframes = [
+                    { transform: `translate(0px, 0px) rotate(${initialRotation}deg) scale(1)`, opacity: 1 },
+                    { transform: `translate(${dX * 0.5}px, ${dY * 0.5 - 30}px) rotate(${initialRotation + 180}deg) scale(1.2)`, opacity: 1, offset: 0.5 },
+                    { transform: `translate(${dX}px, ${dY}px) rotate(${initialRotation + 360}deg) scale(0.8)`, opacity: 0 }
+                ];
+            }
+
+            const anim = card.animate(keyframes, options);
+            anim.onfinish = () => card.remove();
+        }
+    }
+
+    function animateChip(idx) {
+        console.log("💰 [ANIMATIE] Încerc să animez cipul pentru locul:", idx);
+
+        // 1. Validări elemente
+        const seat = document.querySelector(`.seat[data-pos="${idx}"]`);
+        if (!seat) { console.error("❌ Scaunul nu există!"); return; }
+
+        const avatar = seat.querySelector('.avatar-container');
+        if (!avatar) { console.error("❌ Avatarul nu există!"); return; }
+
+        const potElement = document.getElementById('center-pot-area');
+        if (!potElement) { console.error("❌ Pot-ul nu există!"); return; }
+
+        // 2. Coordonate (Calculăm centrul exact)
+        const startRect = avatar.getBoundingClientRect();
+        const endRect = potElement.getBoundingClientRect();
+
+        // Start: Centrul Avatarului
+        const startX = startRect.left + (startRect.width / 2) - 15; // -15 (jumătate din cip de 30px)
+        const startY = startRect.top + (startRect.height / 2) - 15;
+
+        // Final: Centrul Pot-ului
+        const endX = endRect.left + (endRect.width / 2) - 15;
+        const endY = endRect.top + (endRect.height / 2) - 15;
+
+        console.log(`📍 Coordonate: Start(${parseInt(startX)},${parseInt(startY)}) -> End(${parseInt(endX)},${parseInt(endY)})`);
+
+        // 3. Creare Element
+        const chip = document.createElement('div');
+        chip.className = 'flying-chip';
+        
+        // FORȚĂM POZIȚIA INLINE (Ca să fim siguri că se vede)
+        chip.style.left = startX + 'px';
+        chip.style.top = startY + 'px';
+        chip.style.display = 'block';
+        
+        document.body.appendChild(chip);
+
+        // 4. Animația
+        const keyframes = [
+            { transform: `translate(0px, 0px) rotate(0deg) scale(1)`, opacity: 1 },
+            { transform: `translate(${endX - startX}px, ${endY - startY}px) rotate(720deg) scale(0.8)`, opacity: 1 } // Opacity 1 la final ca să vezi unde ajunge
+        ];
+
+        const anim = chip.animate(keyframes, {
+            duration: 600,
+            easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+            fill: 'forwards'
+        });
+
+        anim.onfinish = () => {
+            // Efect de "flash" pe pot când ajunge
+            if (potElement) {
+                potElement.animate([
+                    { transform: 'translate(-50%, -50%) scale(1)' },
+                    { transform: 'translate(-50%, -50%) scale(1.1)' },
+                    { transform: 'translate(-50%, -50%) scale(1)' }
+                ], { duration: 150 });
+            }
+            chip.remove();
+        };
+    }
+
+
+    // --- CHAT LOGIC AVANSAT ---
+    
+    // Lista de jucători ignorați
+    let mutedPlayers = new Set(); 
+
+    // Deschide/Închide Emoji
+    window.toggleEmojiPicker = () => {
+        document.getElementById('emoji-picker').classList.toggle('open');
+    }
+
+    // Adaugă Emoji în input
+    window.addEmoji = (emoji) => {
+        const input = document.getElementById('chat-input');
+        input.value += emoji;
+        input.focus();
+        document.getElementById('emoji-picker').classList.remove('open');
+    }
+
+    // Trimite Mesaj
+    window.sendMessage = () => { 
+        const i = document.getElementById('chat-input'); 
+        const msg = i.value.trim();
+        if(msg){
+            socket.emit('send_chat', { roomId: appState.roomId, message: msg });
+            i.value = '';
+            document.getElementById('emoji-picker').classList.remove('open');
+        } 
+    }
+
+    // Funcția care afișează mesajul
+    function addChatMessage(u, t, sys) { 
+        // 1. Filtrare Mute: Dacă jucătorul e în lista de mute, ignorăm mesajul
+        if (mutedPlayers.has(u)) return;
+
+        const b = document.getElementById('chat-box'); 
+        let html = '';
+
+        if (sys) {
+            // Mesaj de Sistem
+            html = `<div class="chat-msg-line">
+                        <span class="chat-sys">SYSTEM:</span> 
+                        <span class="chat-text" style="color:#94a3b8">${t}</span>
+                    </div>`;
+        } else {
+            // Mesaj Jucător
+            const isMe = (u === appState.myUsername);
+            const color = isMe ? '#10b981' : '#3b82f6';
+            
+            // Dacă e alt jucător, adăugăm butonul de Mute
+            let muteBtn = '';
+            if (!isMe) {
+                muteBtn = `<i class="fas fa-volume-mute btn-mini-mute" onclick="toggleMute('${u}')" title="Mute ${u}"></i>`;
+            }
+
+            html = `<div class="chat-msg-line">
+                        <div class="chat-user-wrap">
+                            <span class="chat-user" style="color:${color}">${u}</span>
+                            ${muteBtn}
+                            <span style="color:rgba(255,255,255,0.3)">:</span>
+                        </div>
+                        <span class="chat-text">${t}</span>
+                    </div>`;
+        }
+        
+        b.insertAdjacentHTML('beforeend', html);
+        
+        // Auto-scroll jos
+        b.scrollTop = b.scrollHeight; 
+    }
+
+    // Funcția de Mute/Unmute
+    window.toggleMute = (targetUser) => {
+        if (targetUser === appState.myUsername) return;
+
+        if (mutedPlayers.has(targetUser)) {
+            mutedPlayers.delete(targetUser);
+            addChatMessage("SYSTEM", `🔊 Ai scos Mute pentru ${targetUser}.`, true);
+        } else {
+            mutedPlayers.add(targetUser);
+            addChatMessage("SYSTEM", `🔇 ${targetUser} are Mute. Nu vei mai vedea mesajele lui.`, true);
+        }
+    };
+
+    // Închide emoji dacă dai click altundeva
+    document.addEventListener('click', (e) => {
+        const picker = document.getElementById('emoji-picker');
+        const btn = document.querySelector('.chat-input-area .chat-btn'); // Butonul emoji
+        // Dacă click-ul nu e pe picker și nici pe buton
+        if (!picker.contains(e.target) && !btn.contains(e.target)) {
+            picker.classList.remove('open');
+        }
+    });
+</script>
+</body>
+</html>

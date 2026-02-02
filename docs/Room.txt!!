@@ -1,0 +1,266 @@
+const Deck = require('./Deck');
+const SekaRules = require('./SekaRules'); 
+const db = require('../config/db');
+
+class Room {
+    constructor(id, name, stake, io) {
+        this.id = id;
+        this.name = name;
+        this.baseStake = parseInt(stake) || 10; 
+        this.io = io;
+        
+        this.players = [];
+        this.deck = new Deck();
+        
+        this.gameState = 'WAITING'; 
+        this.gameMode = 'NORMAL'; 
+        
+        // --- VARIABILE CRITICE ---
+        this.pot = 0;             
+        this.prevRoundPot = 0;    
+        this.current_bet = 0;       // Valoarea absolută a ultimului pariu
+        this.lastBetIsBlind = true; // Starea jucătorului care a setat current_bet
+        
+        this.currentTurnIndex = 0;
+        this.dealerUsername = null; 
+        this.winnerOfLastRound = null;
+
+        this.timers = { turn: null, start: null, vote: null, decision: null };
+        this.eligibleForSpecialRound = []; 
+        this.svaraWinners = [];
+    }
+
+    // ============================================================
+    // 1. ENGINE BETTING (LOGICA TA STRICTĂ)
+    // ============================================================
+
+    getPreviousActivePlayer(currentPlayer) {
+        if (this.players.length < 2) return null;
+        const currentIdx = this.players.indexOf(currentPlayer);
+        let checkIdx = currentIdx;
+        let loopCount = 0;
+
+        do {
+            checkIdx = (checkIdx - 1 + this.players.length) % this.players.length;
+            const p = this.players[checkIdx];
+            if (!p.isFolded && !p.isSpectator) return p;
+            loopCount++;
+        } while (loopCount < this.players.length);
+        return null;
+    }
+
+    calculateCallAmount(player) {
+        if (!player || player.isFolded || player.isSpectator) return 0;
+
+        const activePlayers = this.players.filter(p => !p.isFolded && !p.isSpectator);
+        
+        // 1. PRIMUL JUCĂTOR (Nimeni nu a pariat încă în rundă)
+        const isFirstPlayer = activePlayers.every(p => p.currentBet === 0);
+        if (isFirstPlayer) {
+            return this.baseStake;
+        }
+
+        // Variabilele pentru regula ta
+        const last_bet = this.current_bet;
+        const previous_is_blind = this.lastBetIsBlind; // Luăm din memoria camerei
+        const player_is_blind = !player.hasSeenCards;
+
+        // 2. DACĂ ANTERIORUL E BLIND
+        if (previous_is_blind) {
+            if (player_is_blind) {
+                // Eu Blind vs Blind -> CALL = last_bet (Ex: 600 -> 600)
+                return last_bet;
+            } else {
+                // Eu Seen vs Blind -> CALL = last_bet * 2 (Ex: 600 -> 1200)
+                return last_bet * 2;
+            }
+        } 
+        // 3. DACĂ ANTERIORUL E SEEN (NU E BLIND)
+        else {
+            if (player_is_blind) {
+                // Eu Blind vs Seen -> CALL = last_bet / 2 (Ex: 600 -> 300)
+                let half = Math.ceil(last_bet / 2);
+                return half < this.baseStake ? this.baseStake : half;
+            } else {
+                // Eu Seen vs Seen -> CALL = last_bet (Ex: 600 -> 600)
+                return last_bet;
+            }
+        }
+    }
+
+    isBettingRoundOver() { return false; } // Infinit
+
+    // ============================================================
+    // 2. STATE
+    // ============================================================
+
+    getPublicState() {
+        const activeCount = this.players.filter(p => !p.isFolded && !p.isSpectator && p.isOnline).length;
+        return {
+            id: this.id,
+            gameState: this.gameState,
+            gameMode: this.gameMode,
+            pot: this.pot + (this.prevRoundPot || 0),
+            dealer: this.dealerUsername,
+            winner: this.winnerOfLastRound,
+            currentTurn: (this.gameState === 'ACTIVE' && this.players[this.currentTurnIndex]) ? this.players[this.currentTurnIndex].username : null,
+            canShowdown: activeCount === 2,
+            players: this.players.map(p => ({
+                username: p.username,
+                chips: p.chips,
+                currentBet: p.currentBet, 
+                isFolded: p.isFolded,
+                isSpectator: p.isSpectator,
+                hasSeenCards: p.hasSeenCards,
+                isOnline: p.isOnline,
+                hasActed: p.hasActed,
+                voteStatus: this.gameState === 'VOTING' ? p.voteStatus : null,
+                callAmount: (this.gameState === 'ACTIVE' && !p.isFolded && !p.isSpectator) ? this.calculateCallAmount(p) : 0
+            }))
+        };
+    }
+
+    broadcastState() {
+        this.io.to(this.id).emit('game_state', this.getPublicState());
+    }
+
+    // ============================================================
+    // 3. ACTIONS
+    // ============================================================
+
+    handleAction(socketId, action, data) {
+        const p = this.players.find(p => p.socketId === socketId);
+        if (!p) return;
+
+        if (action === 'LEAVE') { this.removePlayer(socketId); this.io.to(socketId).emit('left_room_success'); return; }
+        
+        if (action === 'SEE_CARDS') {
+            if (p.isFolded || p.isSpectator) return;
+            if (!p.hasSeenCards) {
+                p.hasSeenCards = true;
+                // Important: Nu resetăm lastBetIsBlind aici, doar la BET
+                this.io.to(socketId).emit('your_cards', p.hand);
+                this.broadcastState();
+            }
+            return;
+        }
+
+        if (this.gameState === 'WINNER_DECISION' || this.gameState === 'VOTING') {
+            this.handleSpecialPhase(p, action, data);
+            return;
+        }
+
+        if (this.gameState !== 'ACTIVE' || this.players[this.currentTurnIndex] !== p) return;
+        if (this.timers.turn) clearTimeout(this.timers.turn);
+
+        if (action === 'FOLD') {
+            this.handleFold(p);
+        }
+        else if (action === 'BET') {
+            let amount = parseInt(data.amount) || 0;
+            
+            if (p.chips < amount) {
+                this.io.to(p.socketId).emit('msg_error', 'Fonduri insuficiente!');
+                return;
+            }
+
+            // 1. Luăm banii
+            p.chips -= amount;
+            // 2. Punem în Pot
+            this.pot += amount;
+            
+            // 3. SETĂM NOUA REFERINȚĂ ABSOLUTĂ
+            this.current_bet = amount;
+            this.lastBetIsBlind = !p.hasSeenCards;
+
+            p.currentBet = amount; // Doar pt afișare
+            p.hasActed = true;
+
+            // Animație: Dacă e mai mare decât miza de bază dublată, e Raise
+            if (amount > this.baseStake * 2) {
+                this.io.to(this.id).emit('action_anim', { type: 'raise', username: p.username, amount });
+            } else {
+                this.io.to(this.id).emit('action_anim', { type: 'call', username: p.username, amount });
+            }
+
+            this.nextTurn();
+        }
+        else if (action === 'SHOWDOWN') {
+            const cost = this.calculateCallAmount(p);
+            if (cost > 0) {
+                if (p.chips < cost) { this.io.to(p.socketId).emit('msg_error', 'Fără bani!'); return; }
+                p.chips -= cost; this.pot += cost;
+                this.io.to(this.id).emit('action_anim', { type: 'call', username: p.username, amount: cost });
+            }
+            this.triggerShowdown();
+        }
+        else if (action === 'OPEN_PREVIOUS') {
+            this.handleOpenPrevious(p);
+        }
+    }
+
+    // ... (RESTUL FUNCȚIILOR STANDARD - Start, Turn, End, etc. - rămân neschimbate) ...
+    // Le includ pe scurt pentru integritate:
+
+    async addPlayer(user, socketId) {
+        let existing = this.players.find(p => p.username === user.username);
+        if (existing) {
+            existing.socketId = socketId; existing.isOnline = true;
+            this.broadcastState();
+            if (['ACTIVE', 'SHOWDOWN'].includes(this.gameState) && !existing.isFolded) this.io.to(socketId).emit('your_cards', existing.hand);
+            return { success: true };
+        }
+        if (this.players.length >= 7) return { success: false, msg: "Full" };
+        const p = { socketId, username: user.username, chips: 10000, hand: [], currentBet: 0, isFolded: false, hasSeenCards: false, hasActed: false, isOnline: true, isSpectator: true, voteStatus: null };
+        this.players.push(p);
+        if (this.players.length === 1) this.dealerUsername = user.username;
+        this.broadcastState();
+        this.checkStart();
+        return { success: true };
+    }
+    removePlayer(socketId) {
+        const idx = this.players.findIndex(p => p.socketId === socketId);
+        if (idx !== -1) {
+            const p = this.players[idx];
+            if (this.gameState === 'ACTIVE' && !p.isFolded && !p.isSpectator) { this.handleFold(p, true); this.players.splice(idx, 1); }
+            else { this.players.splice(idx, 1); this.broadcastState(); }
+        }
+    }
+    checkStart() { if(this.gameState!=='WAITING') return; if(this.players.filter(p=>p.isOnline).length>=2 && !this.timers.start) { this.io.to(this.id).emit('msg_system', 'Start...'); this.timers.start=setTimeout(()=>this.startGame('NORMAL'),3000); } }
+    startGame(type='NORMAL') {
+        if(this.timers.turn) clearTimeout(this.timers.turn);
+        this.gameState='ACTIVE'; this.gameMode=type; this.deck=new Deck(); this.deck.shuffle();
+        this.pot = (type==='SVARA'||type==='SAMOVAR') ? this.prevRoundPot : 0; this.prevRoundPot=0;
+        this.current_bet = this.baseStake; this.lastBetIsBlind = true; // Reset
+        this.players.forEach(p=>{
+            p.isFolded=false; p.hand=[]; p.hasSeenCards=false; p.hasActed=false; p.currentBet=0; p.voteStatus=null;
+            if(p.isOnline && p.chips>=this.baseStake) {
+                if(type==='NORMAL'){ p.isSpectator=false; p.chips-=this.baseStake; this.pot+=this.baseStake; }
+                else { p.isSpectator = !this.eligibleForSpecialRound.includes(p.username); }
+            } else p.isSpectator=true;
+        });
+        const active = this.players.filter(p=>!p.isSpectator);
+        let dIdx = active.findIndex(p=>p.username===this.dealerUsername); if(dIdx===-1)dIdx=0; this.dealerUsername=active[dIdx].username;
+        this.currentTurnIndex = this.players.indexOf(active[(dIdx+1)%active.length]);
+        for(let r=0;r<3;r++) active.forEach(p=>p.hand.push(this.deck.deal(1)[0]));
+        active.forEach(p=>p.serverScore=SekaRules.calculateScore(p.hand));
+        this.io.to(this.id).emit('animate_deal', {dealer:this.dealerUsername});
+        setTimeout(()=>{this.startTurnTimer(); this.broadcastState();},1500);
+    }
+    nextTurn() {
+        let loop=0; do { this.currentTurnIndex=(this.currentTurnIndex+1)%this.players.length; loop++; } while((this.players[this.currentTurnIndex].isFolded||this.players[this.currentTurnIndex].isSpectator||!this.players[this.currentTurnIndex].isOnline)&&loop<this.players.length);
+        this.startTurnTimer(); this.broadcastState();
+    }
+    startTurnTimer() { if(this.timers.turn) clearTimeout(this.timers.turn); const c=this.players[this.currentTurnIndex]; if(!c)return; this.io.to(this.id).emit('timer_update', {player:c.username, seconds:15}); this.timers.turn=setTimeout(()=>this.handleFold(c,true),15000); }
+    handleFold(p, forced=false) { p.isFolded=true; this.io.to(this.id).emit('action_anim', {type:'fold', username:p.username}); const a=this.players.filter(pl=>!pl.isFolded&&!pl.isSpectator); if(a.length===1) this.endRound(a[0]); else if(!forced) this.nextTurn(); }
+    triggerShowdown() { /* ...logică showdown... */ this.gameState='SHOWDOWN'; const a=this.players.filter(p=>!p.isFolded&&!p.isSpectator); a.forEach(p=>this.io.to(this.id).emit('showdown_reveal',{username:p.username, hand:p.hand, score:p.serverScore})); let max=-1,w=[]; a.forEach(p=>{if(p.serverScore>max){max=p.serverScore;w=[p];}else if(p.serverScore===max)w.push(p);}); setTimeout(()=>{if(w.length>1)this.handleSvara(w); else this.endRound(w[0]);},4000); }
+    handleSvara(w) { this.io.to(this.id).emit('msg_system', 'SVARA!'); this.prevRoundPot=this.pot; this.pot=0; this.eligibleForSpecialRound=this.players.filter(p=>!p.isFolded&&!p.isSpectator).map(p=>p.username); this.svaraWinners=w.map(p=>p.username); this.startVotingPhase('SVARA'); }
+    startVotingPhase(m) { if(this.timers.turn)clearTimeout(this.timers.turn); this.gameState='VOTING'; this.voteMode=m; this.players.forEach(p=>p.voteStatus=null); if(m==='SAMOVAR'){const w=this.players.find(p=>p.username===this.winnerOfLastRound); if(w)w.voteStatus='YES';} this.broadcastState(); this.timers.vote=setTimeout(()=>this.finalizeVoting(m),10000); }
+    processVote(p,v) { if(!p.isSpectator && this.eligibleForSpecialRound.includes(p.username)) { p.voteStatus=v; this.broadcastState(); } }
+    finalizeVoting(m) { const y=this.players.filter(p=>p.voteStatus==='YES'); if(y.length<2){ /* refund logic */ this.prevRoundPot=0; this.startGame('NORMAL'); return; } y.forEach(p=>{ const free=(m==='SVARA'&&this.svaraWinners.includes(p.username))||(m==='SAMOVAR'&&p.username===this.winnerOfLastRound); if(!free){ let c=Math.ceil(this.prevRoundPot/2); if(p.chips>=c){p.chips-=c;this.pot+=c;}else p.voteStatus='NO'; } }); const c=this.players.filter(p=>p.voteStatus==='YES'); if(c.length<2){this.startGame('NORMAL');return;} this.eligibleForSpecialRound=c.map(p=>p.username); this.prevRoundPot+=this.pot; this.pot=0; this.startGame(m); }
+    async endRound(w) { this.winnerOfLastRound=w.username; this.dealerUsername=w.username; this.gameState='WINNER_DECISION'; this.prevRoundPot=this.pot+(this.prevRoundPot||0); this.pot=0; this.io.to(this.id).emit('round_winner', {winner:w.username, amount:this.prevRoundPot}); this.broadcastState(); this.timers.decision=setTimeout(()=>{ if(this.gameState==='WINNER_DECISION'){w.chips+=this.prevRoundPot; db.updateBalance(w.username,w.chips); this.prevRoundPot=0; this.startGame('NORMAL');} },8000); }
+    handleSpecialPhase(p, a, d) { if(this.gameState==='WINNER_DECISION'&&p.username===this.winnerOfLastRound){if(a==='FLEX'){/*...*/setTimeout(()=>this.startGame('NORMAL'),4000);}if(a==='INIT_SAMOVAR'){/*...*/this.startVotingPhase('SAMOVAR');}} if(this.gameState==='VOTING'&&a==='VOTE') this.processVote(p, d.vote); }
+    handleOpenPrevious(c) { const p=this.getPreviousActivePlayer(c); if(!p||!p.hasSeenCards){this.io.to(c.socketId).emit('msg_error','Nu poți vedea!');return;} const cost=this.calculateCallAmount(c); if(c.chips<cost)return; c.chips-=cost; this.pot+=cost; this.io.to(this.id).emit('action_anim',{type:'call',username:c.username,amount:cost}); this.io.to(c.socketId).emit('reveal_single_hand',{username:p.username,hand:p.hand}); setTimeout(()=>{if(c.serverScore>p.serverScore){this.handleFold(p,true);this.nextTurn();}else this.handleFold(c);},2500); }
+}
+
+module.exports = Room;

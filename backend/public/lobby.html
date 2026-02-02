@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seka - Pro Gaming Lobby</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Rajdhani:wght@500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* ... (TOT CSS-ul tău rămâne aici neschimbat) ... */
+        /* Pentru simplitate, nu îl copiez tot din nou, dar asigură-te că îl păstrezi pe cel din mesajul anterior */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root { --brand-primary: #8b5cf6; --brand-secondary: #3b82f6; --brand-accent: #f59e0b; --bg-deep: #050608; --bg-panel: #0E1116; --bg-surface: #13161C; --bg-overlay: rgba(5, 6, 8, 0.85); --glass-base: rgba(20, 20, 25, 0.6); --glass-border: rgba(255, 255, 255, 0.08); --glass-border-hover: rgba(255, 255, 255, 0.15); --glass-highlight: rgba(255, 255, 255, 0.03); --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4); --text-main: #ffffff; --text-soft: #94a3b8; --text-dim: #475569; --text-dark: #1e293b; --st-success: #10b981; --st-danger: #ef4444; --st-warning: #f59e0b; --st-info: #3b82f6; --glow-brand: 0 0 20px rgba(139, 92, 246, 0.15); --glow-success: 0 0 15px rgba(16, 185, 129, 0.2); --glow-danger: 0 0 15px rgba(239, 68, 68, 0.2); --trans-fast: 0.15s ease; --trans-med: 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-deep); background-image: radial-gradient(circle at 15% 50%, rgba(139, 92, 246, 0.06), transparent 25%), radial-gradient(circle at 85% 30%, rgba(59, 130, 246, 0.06), transparent 25%); color: var(--text-main); height: 100vh; width: 100vw; overflow: hidden; display: flex; flex-direction: column; }
+        .grid-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; background-size: 50px 50px; background-image: linear-gradient(to right, rgba(255, 255, 255, 0.01) 1px, transparent 1px), linear-gradient(to bottom, rgba(255, 255, 255, 0.01) 1px, transparent 1px); opacity: 0.5; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 3px; } ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+        .font-mono { font-family: 'Roboto Mono', monospace; } .font-display { font-family: 'Rajdhani', sans-serif; }
+        .glass-panel { background: rgba(14, 17, 22, 0.75); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--glass-border); box-shadow: 0 4px 20px rgba(0,0,0,0.2); border-radius: 16px; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: var(--trans-fast); position: relative; overflow: hidden; }
+        .btn-primary { background: linear-gradient(135deg, var(--brand-primary), #7c3aed); color: white; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3); border: 1px solid rgba(255,255,255,0.1); }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(139, 92, 246, 0.4); border-color: rgba(255,255,255,0.2); }
+        .btn-success { background: linear-gradient(135deg, #10b981, #059669); color: white; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
+        .btn-success:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4); }
+        .navbar { height: 72px; width: 100%; flex-shrink: 0; z-index: 100; background: rgba(5, 6, 8, 0.95); border-bottom: 1px solid var(--glass-border); backdrop-filter: blur(20px); }
+        .nav-inner { max-width: 1920px; margin: 0 auto; padding: 0 32px; height: 100%; display: flex; align-items: center; justify-content: space-between; }
+        .nav-left { display: flex; align-items: center; gap: 48px; }
+        .logo { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+        .logo-icon { font-size: 42px; background: linear-gradient(135deg, var(--brand-accent), #f97316); -webkit-background-clip: text; -webkit-text-fill-color: transparent; color: var(--brand-accent); filter: drop-shadow(0 0 15px rgba(245, 158, 11, 0.5)); transition: transform 0.3s ease; }
+        .logo:hover .logo-icon { transform: scale(1.1) rotate(-5deg); filter: drop-shadow(0 0 20px rgba(245, 158, 11, 0.8)); }
+        .logo-text { font-family: 'Rajdhani', sans-serif; font-size: 26px; font-weight: 700; color: white; letter-spacing: 1px; text-transform: uppercase; }
+        .nav-links { display: flex; gap: 8px; background: rgba(255,255,255,0.03); padding: 4px; border-radius: 10px; border: 1px solid var(--glass-border); }
+        .nav-item { padding: 8px 16px; border: none; background: transparent; color: var(--text-soft); font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 6px; transition: var(--trans-fast); display: flex; align-items: center; gap: 8px; }
+        .nav-item:hover { color: white; background: rgba(255,255,255,0.05); }
+        .nav-item.active { background: rgba(255,255,255,0.1); color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+        .nav-item i { font-size: 14px; }
+        .nav-right { display: flex; align-items: center; gap: 20px; }
+        .wallet-pill { display: flex; align-items: center; gap: 14px; padding: 6px 6px 6px 18px; background: linear-gradient(90deg, rgba(0,0,0,0.4) 0%, rgba(20,20,25,0.4) 100%); border: 1px solid var(--glass-border); border-radius: 12px; transition: var(--trans-fast); }
+        .wallet-pill:hover { border-color: var(--glass-border-hover); }
+        .wallet-data { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; }
+        .wallet-label { font-size: 10px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+        .wallet-num { font-family: 'Roboto Mono', monospace; font-size: 15px; font-weight: 700; color: var(--brand-accent); text-shadow: 0 0 10px rgba(245, 158, 11, 0.2); }
+        .wallet-add { width: 32px; height: 32px; background: rgba(255,255,255,0.1); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--st-success); cursor: pointer; transition: 0.2s; }
+        .wallet-add:hover { background: var(--st-success); color: black; box-shadow: 0 0 15px var(--glow-success); }
+        .icon-action { width: 44px; height: 44px; border-radius: 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); color: var(--text-soft); font-size: 18px; cursor: pointer; position: relative; transition: 0.2s; display: flex; align-items: center; justify-content: center; }
+        .icon-action:hover { background: rgba(255,255,255,0.08); color: white; border-color: var(--glass-border-hover); }
+        .dot-badge { position: absolute; top: 10px; right: 10px; width: 8px; height: 8px; background: var(--st-danger); border-radius: 50%; border: 2px solid var(--bg-deep); }
+        .user-profile { display: flex; align-items: center; gap: 12px; padding: 6px 14px 6px 6px; background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); border-radius: 12px; cursor: pointer; transition: 0.2s; }
+        .user-profile:hover { border-color: var(--glass-border-hover); background: rgba(255,255,255,0.06); }
+        .u-avatar { width: 34px; height: 34px; border-radius: 8px; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: white; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2); }
+        .u-info-nav { display: flex; flex-direction: column; }
+        .u-name { font-size: 13px; font-weight: 600; color: white; }
+        .u-lvl { font-size: 10px; color: var(--brand-primary); font-weight: 700; }
+        .app-container { flex: 1; display: flex; flex-direction: column; width: 100%; max-width: 1920px; margin: 0 auto; padding: 24px 32px 0 32px; min-height: 0; position: relative; z-index: 1; }
+        .view-page { display: none; flex: 1; min-height: 0; overflow: hidden; animation: fadeIn 0.4s ease; }
+        .view-page.active { display: flex; flex-direction: column; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .lobby-grid { display: grid; grid-template-columns: 1fr 340px; gap: 32px; height: 100%; min-height: 0; padding-bottom: 24px; }
+        .tables-area { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+        .tables-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-shrink: 0; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); padding: 8px 16px; border-radius: 12px; backdrop-filter: blur(5px); }
+        .th-left { display: flex; align-items: center; gap: 24px; }
+        .page-title { font-family: 'Rajdhani', sans-serif; font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: white; margin: 0; display: flex; align-items: center; gap: 10px; }
+        .live-stats { display: flex; gap: 16px; border-left: 1px solid rgba(255,255,255,0.1); padding-left: 16px; }
+        .stat-item { font-size: 11px; color: var(--text-soft); display: flex; align-items: center; gap: 6px; font-weight: 500; }
+        .stat-item i { color: var(--st-success); font-size: 8px; }
+        .stat-val { color: white; font-weight: 700; font-family: 'Roboto Mono'; }
+        .th-center { flex: 1; display: flex; justify-content: center; }
+        .filter-segment { display: flex; background: rgba(0,0,0,0.3); gap: 2px; border-radius: 8px; padding: 3px; border: 1px solid var(--glass-border); }
+        .seg-btn { background: transparent; border: none; padding: 6px 14px; color: var(--text-dim); font-size: 11px; font-weight: 600; cursor: pointer; border-radius: 6px; transition: 0.2s; display: flex; align-items: center; gap: 6px; }
+        .seg-btn i { font-size: 12px; opacity: 0.7; }
+        .seg-btn:hover { color: var(--text-soft); background: rgba(255,255,255,0.05); }
+        .seg-btn.active { background: rgba(255,255,255,0.1); color: white; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+        .seg-btn.active i { color: var(--brand-secondary); opacity: 1; }
+        .th-right { display: flex; align-items: center; gap: 12px; }
+        .search-wrap { position: relative; width: 200px; }
+        .search-wrap i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 12px; }
+        .search-inp { width: 100%; height: 34px; background: rgba(255,255,255,0.03); border: 1px solid transparent; border-radius: 8px; padding: 0 12px 0 32px; color: white; font-size: 12px; outline: none; transition: 0.2s; }
+        .search-inp:focus { background: rgba(0,0,0,0.4); border-color: var(--glass-border-hover); }
+        .btn-create { height: 34px; padding: 0 20px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; border-radius: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s ease; box-shadow: 0 0 15px rgba(16, 185, 129, 0.4); }
+        .btn-create:hover { transform: translateY(-1px); box-shadow: 0 0 25px rgba(16, 185, 129, 0.6); background: linear-gradient(135deg, #34d399 0%, #10b981 100%); }
+        .tables-scroll { flex: 1; overflow-y: auto; padding-right: 8px; padding-bottom: 20px; padding-top: 4px; }
+        .tables-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 12px; }
+        .hud-card { display: grid; grid-template-columns: 42px 1.5fr 1fr auto; align-items: center; gap: 14px; padding: 10px 16px; background: linear-gradient(90deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.005) 100%); border: 1px solid var(--glass-border); border-radius: 12px; cursor: pointer; position: relative; overflow: hidden; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .hud-card:hover { transform: scale(1.02) translateY(-2px); background: linear-gradient(90deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 100%); border-color: rgba(255,255,255,0.2); box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 5; }
+        .hud-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; transition: 0.3s; }
+        .hud-card.classic::before { background: var(--st-success); } .hud-card.turbo::before { background: var(--st-warning); } .hud-card.tournament::before { background: var(--brand-primary); } .hud-card:hover::before { width: 4px; box-shadow: 0 0 12px currentColor; }
+        .hud-bg-icon { position: absolute; right: 40px; top: 50%; transform: translateY(-50%) rotate(10deg); font-size: 60px; opacity: 0.02; pointer-events: none; transition: 0.4s; }
+        .hud-card:hover .hud-bg-icon { opacity: 0.1; transform: translateY(-50%) rotate(0deg) scale(1.2); }
+        .hc-icon-box { width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.05); box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
+        .hud-card.classic .hc-icon-box { color: var(--st-success); border-color: rgba(16,185,129,0.1); } .hud-card.turbo .hc-icon-box { color: var(--st-warning); border-color: rgba(245,158,11,0.1); } .hud-card.tournament .hc-icon-box { color: var(--brand-primary); border-color: rgba(139,92,246,0.1); }
+        .hc-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; z-index: 2; }
+        .hc-name { font-size: 14px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        .hc-meta { display: flex; align-items: center; gap: 6px; }
+        .tag { font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 2px 5px; border-radius: 3px; }
+        .tag-classic { color: var(--text-soft); border: 1px solid rgba(255,255,255,0.1); } .tag-turbo { color: var(--st-warning); background: rgba(245,158,11,0.1); } .tag-tourney { color: var(--brand-primary); background: rgba(139,92,246,0.1); } .tag-priv { color: #fff; background: var(--st-danger); box-shadow: 0 0 8px rgba(239, 68, 68, 0.3); }
+        .hc-stats { display: flex; flex-direction: column; gap: 4px; justify-content: center; z-index: 2; }
+        .stat-label { font-size: 10px; color: var(--text-soft); font-weight: 600; display: flex; align-items: center; gap: 4px; }
+        .prog-track { width: 100%; height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden; }
+        .prog-fill { height: 100%; border-radius: 2px; transition: 0.3s; }
+        .hud-card.classic .prog-fill { background: var(--st-success); } .hud-card.turbo .prog-fill { background: var(--st-warning); } .hud-card.tournament .prog-fill { background: var(--brand-primary); }
+        .hc-action { display: flex; align-items: center; gap: 12px; padding-left: 12px; border-left: 1px solid rgba(255,255,255,0.05); z-index: 2; }
+        .money-group { text-align: right; }
+        .mon-val { display: block; font-family: 'Roboto Mono', monospace; font-size: 13px; font-weight: 700; color: var(--brand-accent); }
+        .mon-lbl { font-size: 8px; color: var(--text-dim); text-transform: uppercase; font-weight: 700; }
+        .join-btn-arrow { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--glass-border); background: transparent; color: var(--text-soft); display: flex; align-items: center; justify-content: center; font-size: 12px; transition: 0.2s; }
+        .hud-card:hover .join-btn-arrow { background: white; color: black; border-color: white; box-shadow: 0 0 15px rgba(255,255,255,0.3); transform: rotate(-90deg); }
+        .lobby-sidebar { display: flex; flex-direction: column; gap: 20px; overflow: hidden; height: 100%; }
+        .sidebar-scroll { display: flex; flex-direction: column; gap: 20px; flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; padding-left: 4px; }
+        .sidebar-profile-card { background: linear-gradient(165deg, rgba(20,20,25,0.8), rgba(10,10,12,0.95)); border: 1px solid var(--glass-border); border-radius: 16px; padding: 20px; position: relative; overflow: hidden; }
+        .sidebar-profile-card::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: linear-gradient(90deg, var(--brand-primary), var(--brand-secondary)); }
+        .spc-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+        .spc-avatar { width: 56px; height: 56px; border-radius: 16px; background: linear-gradient(135deg, #6366f1, #a855f7); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; color: white; box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); border: 2px solid rgba(255,255,255,0.1); }
+        .spc-user h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+        .spc-badge { font-size: 10px; background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; color: var(--brand-accent); font-weight: 600; text-transform: uppercase; }
+        .spc-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+        .spc-stat-box { background: rgba(255,255,255,0.03); border-radius: 8px; padding: 10px; text-align: center; border: 1px solid transparent; transition: 0.2s; }
+        .spc-stat-box:hover { border-color: var(--glass-border); background: rgba(255,255,255,0.05); }
+        .spc-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 2px; }
+        .spc-value { font-family: 'Roboto Mono', monospace; font-size: 14px; font-weight: 700; color: white; }
+        .widget-title { font-size: 11px; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+        .daily-login-widget { padding: 16px; background: rgba(20,20,25,0.6); border: 1px solid var(--glass-border); border-radius: 12px; }
+        .daily-track { display: flex; justify-content: space-between; gap: 4px; margin-bottom: 12px; }
+        .day-node { flex: 1; aspect-ratio: 1; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--text-dim); position: relative; }
+        .day-node.claimed { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.3); color: var(--st-success); }
+        .day-node.current { background: var(--brand-primary); color: white; border-color: var(--brand-primary); box-shadow: 0 0 10px var(--glow-brand); transform: scale(1.1); z-index: 2; }
+        .claim-btn { width: 100%; padding: 10px; background: linear-gradient(90deg, #7c3aed, #6d28d9); border: none; border-radius: 8px; color: white; font-size: 12px; font-weight: 700; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 10px rgba(124,58,237,0.3); }
+        .claim-btn:hover { transform: translateY(-1px); }
+        .missions-widget { display: flex; flex-direction: column; gap: 8px; }
+        .mission-card { background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); padding: 12px; border-radius: 10px; transition: 0.2s; }
+        .mission-card:hover { background: rgba(255,255,255,0.04); border-color: var(--glass-border-hover); }
+        .msn-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+        .msn-title { font-size: 12px; font-weight: 600; color: #fff; line-height: 1.3; }
+        .msn-reward { font-size: 10px; font-weight: 700; color: var(--brand-accent); background: rgba(245,158,11,0.1); padding: 2px 6px; border-radius: 4px; white-space: nowrap; margin-left: 8px; }
+        .msn-progress-wrap { display: flex; align-items: center; gap: 8px; }
+        .msn-track { flex: 1; height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden; }
+        .msn-fill { height: 100%; background: var(--st-success); border-radius: 2px; }
+        .msn-val { font-size: 10px; color: var(--text-dim); font-weight: 600; min-width: 24px; text-align: right; }
+        .promo-container { margin-top: auto; height: 150px; position: relative; overflow: hidden; border-radius: 16px; border: 1px solid var(--glass-border); box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+        .promo-wrapper { display: flex; height: 100%; transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .promo-slide { min-width: 100%; height: 100%; padding: 20px; position: relative; display: flex; flex-direction: column; justify-content: center; background-size: cover; background-position: center; }
+        .ps-purple { background: radial-gradient(circle at top right, rgba(139,92,246,0.3), transparent), linear-gradient(to bottom, #1e1b4b, #0f172a); } .ps-orange { background: radial-gradient(circle at bottom right, rgba(245,158,11,0.2), transparent), linear-gradient(to bottom, #451a03, #0f172a); } .ps-green { background: radial-gradient(circle at top left, rgba(16,185,129,0.2), transparent), linear-gradient(to bottom, #064e3b, #0f172a); }
+        .ps-content { position: relative; z-index: 10; max-width: 75%; }
+        .ps-tag { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; padding: 4px 8px; border-radius: 4px; width: fit-content; margin-bottom: 6px; backdrop-filter: blur(4px); display: inline-block; }
+        .ps-purple .ps-tag { background: rgba(139,92,246,0.3); color: #d8b4fe; border: 1px solid rgba(139,92,246,0.4); } .ps-orange .ps-tag { background: rgba(245,158,11,0.3); color: #fcd34d; border: 1px solid rgba(245,158,11,0.4); } .ps-green .ps-tag { background: rgba(16,185,129,0.3); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.4); }
+        .ps-head { font-family: 'Rajdhani', sans-serif; font-size: 20px; font-weight: 700; color: white; margin-bottom: 4px; line-height: 1; text-transform: uppercase; }
+        .ps-sub { font-size: 11px; color: var(--text-soft); margin-bottom: 12px; line-height: 1.4; }
+        .ps-btn { font-size: 10px; font-weight: 700; color: white; padding: 5px 12px; border-radius: 6px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; gap: 6px; }
+        .ps-btn:hover { background: white; color: black; border-color: white; }
+        .ps-visual { position: absolute; right: -10px; bottom: -20px; width: 120px; height: 120px; perspective: 600px; pointer-events: none; }
+        .card-gfx { position: absolute; width: 50px; height: 75px; border-radius: 6px; background: linear-gradient(135deg, #fff, #e2e8f0); box-shadow: -5px 5px 15px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; border: 2px solid white; }
+        .cg-1 { right: 20px; bottom: 30px; transform: rotate(15deg) translateZ(20px); color: var(--st-danger); z-index: 3; } .cg-2 { right: 40px; bottom: 35px; transform: rotate(0deg) translateZ(10px); color: black; z-index: 2; } .cg-3 { right: 60px; bottom: 20px; transform: rotate(-15deg) translateZ(0px); color: var(--st-danger); z-index: 1; }
+        .ps-blue { background: radial-gradient(circle at top right, rgba(59,130,246,0.3), transparent), linear-gradient(to bottom, #172554, #0f172a); } .ps-blue .ps-tag { background: rgba(59,130,246,0.3); color: #93c5fd; border: 1px solid rgba(59,130,246,0.4); }
+        .ps-red { background: radial-gradient(circle at bottom right, rgba(239,68,68,0.25), transparent), linear-gradient(to bottom, #450a0a, #0f172a); } .ps-red .ps-tag { background: rgba(239,68,68,0.3); color: #fca5a5; border: 1px solid rgba(239,68,68,0.4); }
+        .ps-gold { background: radial-gradient(circle at top left, rgba(234,179,8,0.25), transparent), linear-gradient(to bottom, #422006, #0f172a); } .ps-gold .ps-tag { background: rgba(234,179,8,0.3); color: #fde047; border: 1px solid rgba(234,179,8,0.4); }
+        .cs-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding-bottom: 80px; }
+        .cs-circle { width: 120px; height: 120px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,0.03), transparent 70%); border: 1px solid var(--glass-border); display: flex; align-items: center; justify-content: center; font-size: 48px; color: var(--text-dim); margin-bottom: 32px; box-shadow: 0 0 50px rgba(0,0,0,0.5); position: relative; }
+        .cs-circle::after { content: ''; position: absolute; inset: -10px; border-radius: 50%; border: 1px dashed var(--glass-border); animation: spin 20s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .cs-h1 { font-family: 'Rajdhani', sans-serif; font-size: 36px; font-weight: 700; color: white; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 2px; }
+        .cs-txt { font-size: 15px; color: var(--text-soft); max-width: 400px; line-height: 1.6; }
+        .app-footer { width: 100%; flex-shrink: 0; background: var(--bg-deep); border-top: 1px solid var(--glass-border); padding: 16px 0; z-index: 50; }
+        .footer-con { max-width: 1920px; margin: 0 auto; padding: 0 32px; display: flex; justify-content: space-between; align-items: center; }
+        .foot-links { display: flex; gap: 32px; }
+        .foot-a { font-size: 12px; color: var(--text-dim); text-decoration: none; transition: 0.2s; font-weight: 500; }
+        .foot-a:hover { color: var(--text-main); }
+        .foot-copy { font-size: 12px; color: var(--text-dim); }
+        .modal-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); z-index: 2000; display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: 0.3s ease; }
+        .modal-layer.visible { opacity: 1; visibility: visible; }
+        .modal-panel { background: #0f1219; width: 100%; max-width: 480px; padding: 32px; border-radius: 24px; border: 1px solid var(--glass-border-hover); box-shadow: 0 25px 80px rgba(0,0,0,0.7); transform: scale(0.95) translateY(20px); transition: 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); position: relative; overflow: hidden; }
+        .modal-panel::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: linear-gradient(90deg, var(--st-success), var(--brand-secondary)); }
+        .modal-layer.visible .modal-panel { transform: scale(1) translateY(0); }
+        .mp-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .mp-title { font-size: 22px; font-weight: 700; color: white; display: flex; align-items: center; gap: 12px; font-family: 'Rajdhani', sans-serif; text-transform: uppercase; }
+        .mp-close { background: rgba(255,255,255,0.05); border: none; width: 36px; height: 36px; border-radius: 10px; color: var(--text-soft); cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; }
+        .mp-close:hover { background: rgba(255,255,255,0.1); color: white; }
+        .input-group { margin-bottom: 20px; }
+        .input-label { font-size: 12px; font-weight: 700; color: var(--text-soft); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+        .input-box { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); padding: 14px 16px; border-radius: 12px; color: white; font-size: 14px; outline: none; transition: 0.2s; font-family: 'Inter', sans-serif; }
+        .input-box:focus { border-color: var(--st-success); background: rgba(16, 185, 129, 0.05); }
+        .select-box { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); padding: 14px 16px; border-radius: 12px; color: white; font-size: 14px; outline: none; appearance: none; cursor: pointer; }
+        .select-wrapper { position: relative; }
+        .select-wrapper::after { content: '\f078'; font-family: 'Font Awesome 5 Free'; font-weight: 900; position: absolute; right: 16px; top: 50%; transform: translateY(-50%); color: var(--text-dim); pointer-events: none; font-size: 12px; }
+        .toggle-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding: 16px; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid var(--glass-border); }
+        .toggle-label { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .switch { position: relative; display: inline-block; width: 48px; height: 26px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0.1); border-radius: 34px; transition: .4s; }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; border-radius: 50%; transition: .4s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        input:checked + .slider { background-color: var(--st-success); }
+        input:checked + .slider:before { transform: translateX(22px); }
+        .pass-hidden { display: none; margin-top: 12px; animation: slideDown 0.2s ease; }
+        .pass-hidden.show { display: block; }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+        .btn-submit { width: 100%; padding: 16px; background: linear-gradient(135deg, var(--st-success) 0%, #059669 100%); border: none; border-radius: 12px; color: white; font-weight: 800; font-size: 15px; cursor: pointer; box-shadow: 0 4px 20px var(--glow-success); transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 8px 30px var(--glow-success); }
+    </style>
+</head>
+<body>
+    <div class="grid-overlay"></div>
+    <div class="ambient-layer"></div>
+
+    <nav class="navbar">
+        <div class="nav-inner">
+            <div class="nav-left">
+              <a href="#" class="logo">
+                    <i class="fas fa-diamond logo-icon"></i>
+                    <span class="logo-text">Seka</span>
+                </a>
+                <div class="nav-links">
+                    <button class="nav-item active" data-page="lobby"><i class="fas fa-layer-group"></i> Lobby</button>
+                    <button class="nav-item" data-page="leaderboard"><i class="fas fa-chart-bar"></i> Ranking</button>
+                    <button class="nav-item" data-page="shop"><i class="fas fa-shopping-basket"></i> Store</button>
+                    <button class="nav-item" data-page="rewards"><i class="fas fa-crown"></i> VIP</button>
+                </div>
+            </div>
+            <div class="nav-right">
+                <div class="wallet-pill">
+                    <div class="wallet-data">
+                        <span class="wallet-label">Total Balance</span>
+                        <span class="wallet-num" id="user-balance">...</span>
+                    </div>
+                    <div class="wallet-add"><i class="fas fa-plus" style="font-size: 12px;"></i></div>
+                </div>
+                <button class="icon-action"><i class="far fa-bell"></i><span class="dot-badge"></span></button>
+                <div class="user-profile">
+                    <div class="u-avatar" id="user-avatar-text">U</div>
+                    <div class="u-info-nav">
+                        <span class="u-name" id="user-name">Loading...</span>
+                        <span class="u-lvl">LVL 1</span>
+                    </div>
+                    <i class="fas fa-chevron-down" style="font-size: 10px; color: var(--text-dim); margin-left: 8px;"></i>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="app-container">
+        
+        <div class="view-page active" id="lobbyPage">
+            <div class="lobby-grid">
+                
+               <div class="tables-area">
+                    <div class="tables-header">
+                        <div class="th-left">
+                            <h2 class="page-title"><i class="fas fa-satellite-dish" style="color:var(--brand-secondary)"></i> Live Tables</h2>
+                            <div class="live-stats">
+                               <span class="stat-item"><i class="fas fa-users" style=" font-size:1.15em;"></i> <span class="stat-val" id="online-players">...</span> Playing</span>
+                               <span class="stat-item"><i class="fas fa-dice" style="color:var(--brand-accent); font-size:1.15em;"></i> <span class="stat-val" id="online-tables">...</span> Active</span>
+
+                            </div>
+                        </div>
+                        
+                        <div class="th-center">
+                            <div class="filter-segment">
+                                <button class="seg-btn active" onclick="setFilter('all', this)">
+                                    <i class="fas fa-globe"></i> All
+                                </button>
+                                <button class="seg-btn" onclick="setFilter('classic', this)">
+                                    <i class="fas fa-chair"></i> Classic
+                                </button>
+                                <button class="seg-btn" onclick="setFilter('turbo', this)">
+                                    <i class="fas fa-bolt"></i> Turbo
+                                </button>
+                                <button class="seg-btn" onclick="setFilter('tournament', this)">
+                                    <i class="fas fa-trophy"></i> Tourney
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="th-right">
+                            <div class="search-wrap">
+                                <i class="fas fa-search"></i>
+                                <input type="text" class="search-inp" placeholder="Search..." oninput="handleSearch(this.value)">
+                            </div>
+                            <button class="btn-create" onclick="openModal()">
+                                <i class="fas fa-plus"></i> Create
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="tables-scroll">
+                        <div class="tables-grid" id="tablesGrid">
+                            </div>
+                    </div>
+                </div>
+
+                <div class="lobby-sidebar">
+                    <div class="sidebar-scroll">
+                        
+                        <div class="daily-login-widget">
+                            <div class="widget-title">
+                                <span>Daily Reward</span>
+                                <span style="color:var(--brand-accent)"><i class="fas fa-fire"></i> 5 Day Streak</span>
+                            </div>
+                            <div class="daily-track">
+                                <div class="day-node claimed"><i class="fas fa-check"></i></div>
+                                <div class="day-node claimed"><i class="fas fa-check"></i></div>
+                                <div class="day-node claimed"><i class="fas fa-check"></i></div>
+                                <div class="day-node claimed"><i class="fas fa-check"></i></div>
+                                <div class="day-node claimed"><i class="fas fa-check"></i></div>
+                                <div class="day-node current"><i class="fas fa-gift"></i></div>
+                                <div class="day-node">7</div>
+                            </div>
+                            <button class="claim-btn">Collect 50,000 Chips</button>
+                        </div>
+
+                        <div>
+                            <div class="widget-title">
+                                <span>Daily Missions</span>
+                                <span style="font-size:10px; color:var(--text-dim)">Resets in 4h</span>
+                            </div>
+                            <div class="missions-widget">
+                                <div class="mission-card">
+                                    <div class="msn-head">
+                                        <span class="msn-title">Win 3 Hands with a Flush</span>
+                                        <span class="msn-reward">+5K</span>
+                                    </div>
+                                    <div class="msn-progress-wrap">
+                                        <div class="msn-track"><div class="msn-fill" style="width: 66%"></div></div>
+                                        <div class="msn-val">2/3</div>
+                                    </div>
+                                </div>
+                                <div class="mission-card">
+                                    <div class="msn-head">
+                                        <span class="msn-title">Play 10 Turbo Games</span>
+                                        <span class="msn-reward">+2K</span>
+                                    </div>
+                                    <div class="msn-progress-wrap">
+                                        <div class="msn-track"><div class="msn-fill" style="width: 40%"></div></div>
+                                        <div class="msn-val">4/10</div>
+                                    </div>
+                                </div>
+                                <div class="mission-card">
+                                    <div class="msn-head">
+                                        <span class="msn-title">Eliminate 1 Player</span>
+                                        <span class="msn-reward">+10K</span>
+                                    </div>
+                                    <div class="msn-progress-wrap">
+                                        <div class="msn-track"><div class="msn-fill" style="width: 0%"></div></div>
+                                        <div class="msn-val">0/1</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="promo-container">
+                        <div class="promo-wrapper" id="promoTrack">
+                            <div class="promo-slide ps-purple">
+                                <div class="ps-content">
+                                    <span class="ps-tag">Major Event</span>
+                                    <div class="ps-head">Mega Cup</div>
+                                    <div class="ps-sub">1M Prize Pool. Finals tonight.</div>
+                                    <div class="ps-btn">Details <i class="fas fa-arrow-right"></i></div>
+                                </div>
+                                <div class="ps-visual">
+                                    <div class="card-gfx cg-1">A♦</div>
+                                    <div class="card-gfx cg-2">A♠</div>
+                                    <div class="card-gfx cg-3">A♥</div>
+                                </div>
+                            </div>
+                            <div class="promo-slide ps-orange">
+                                <div class="ps-content">
+                                    <span class="ps-tag">Bonus</span>
+                                    <div class="ps-head">Double XP</div>
+                                    <div class="ps-sub">Grind ranks 2x faster.</div>
+                                    <div class="ps-btn">Play Now <i class="fas fa-play"></i></div>
+                                </div>
+                                <div class="ps-visual">
+                                    <div class="card-gfx cg-1">K♣</div>
+                                    <div class="card-gfx cg-2">10♣</div>
+                                    <div class="card-gfx cg-3">J♣</div>
+                                </div>
+                            </div>
+                            <div class="promo-slide ps-green">
+                                <div class="ps-content">
+                                    <span class="ps-tag">Referral</span>
+                                    <div class="ps-head">Invite Pro</div>
+                                    <div class="ps-sub">Earn 100K chips per invite.</div>
+                                    <div class="ps-btn">Copy Link <i class="fas fa-link"></i></div>
+                                </div>
+                                <div class="ps-visual">
+                                    <div class="card-gfx cg-1">7♠</div>
+                                    <div class="card-gfx cg-2">7♦</div>
+                                    <div class="card-gfx cg-3">7♣</div>
+                                </div>
+                            </div>
+                            <div class="promo-slide ps-blue">
+                            <div class="ps-content">
+                                <span class="ps-tag">New Deposit</span>
+                                <div class="ps-head">Crypto Bonus</div>
+                                <div class="ps-sub">Get +20% chips when topping up with ETH or BTC.</div>
+                                <div class="ps-btn">Deposit <i class="fas fa-wallet"></i></div>
+                            </div>
+                            <div class="ps-visual">
+                                <div class="card-gfx cg-1" style="color:black">Q♠</div>
+                                <div class="card-gfx cg-2" style="color:black">K♠</div>
+                                <div class="card-gfx cg-3" style="color:black">A♠</div>
+                            </div>
+                        </div>
+                        
+                        <div class="promo-slide ps-red">
+                            <div class="ps-content">
+                                <span class="ps-tag">Bounty Week</span>
+                                <div class="ps-head">Knockout Kings</div>
+                                <div class="ps-sub">Eliminate players to win instant cash prizes.</div>
+                                <div class="ps-btn">Find Table <i class="fas fa-crosshairs"></i></div>
+                            </div>
+                            <div class="ps-visual">
+                                <div class="card-gfx cg-1" style="color:var(--st-danger)">9♥</div>
+                                <div class="card-gfx cg-2" style="color:var(--st-danger)">9♦</div>
+                                <div class="card-gfx cg-3" style="color:black">9♠</div>
+                            </div>
+                        </div>
+                        
+                        <div class="promo-slide ps-gold">
+                            <div class="ps-content">
+                                <span class="ps-tag">Exclusive</span>
+                                <div class="ps-head">High Rollers</div>
+                                <div class="ps-sub">Private access to $1M/2M blind tables.</div>
+                                <div class="ps-btn">Apply Now <i class="fas fa-lock"></i></div>
+                            </div>
+                            <div class="ps-visual">
+                                <div class="card-gfx cg-1" style="color:var(--st-danger)">10♦</div>
+                                <div class="card-gfx cg-2" style="color:var(--st-danger)">K♦</div>
+                                <div class="card-gfx cg-3" style="color:var(--st-danger)">A♦</div>
+                            </div>
+                        </div>  
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="view-page" id="leaderboardPage">
+            <div class="cs-wrap">
+                <div class="cs-circle"><i class="fas fa-trophy"></i></div>
+                <div class="cs-h1">Season Rankings</div>
+                <div class="cs-txt">Global leaderboard calculation is in progress. Season 5 rewards will be distributed shortly.</div>
+            </div>
+        </div>
+        <div class="view-page" id="shopPage">
+            <div class="cs-wrap">
+                <div class="cs-circle"><i class="fas fa-store"></i></div>
+                <div class="cs-h1">Marketplace</div>
+                <div class="cs-txt">New crypto deposit methods and exclusive avatar skins are being added to the store.</div>
+            </div>
+        </div>
+        <div class="view-page" id="rewardsPage">
+            <div class="cs-wrap">
+                <div class="cs-circle"><i class="fas fa-gem"></i></div>
+                <div class="cs-h1">VIP Lounge</div>
+                <div class="cs-txt">Access exclusive high-stakes tables and rakeback benefits. Upgrade your membership to enter.</div>
+            </div>
+        </div>
+
+    </div>
+
+    <footer class="app-footer">
+        <div class="footer-con">
+            <div class="foot-links">
+                <a href="#" class="foot-a">Fair Play Policy</a>
+                <a href="#" class="foot-a">Terms of Service</a>
+                <a href="#" class="foot-a">Privacy & Data</a>
+                <a href="#" class="foot-a">24/7 Support</a>
+            </div>
+            <div class="foot-copy">© 2025 Seka Gaming Inc. All Rights Reserved. 18+ Only.</div>
+        </div>
+    </footer>
+
+    <div class="modal-layer" id="createModal">
+        <div class="modal-panel">
+            <div class="mp-header">
+                <div class="mp-title"><i class="fas fa-layer-group" style="color:var(--st-success)"></i> New Table</div>
+                <button class="mp-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <form onsubmit="handleCreateTable(event)">
+                <div class="input-group">
+                    <label class="input-label"><i class="fas fa-tag"></i> Table Name</label>
+                    <input type="text" class="input-box" id="tableName" placeholder="E.g. Friday Night High Rollers" required>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="input-group">
+                        <label class="input-label"><i class="fas fa-chess"></i> Game Mode</label>
+                        <div class="select-wrapper">
+                            <select class="select-box" id="tableMode">
+                                <option value="classic">Classic Hold'em</option>
+                                <option value="turbo">Turbo Speed</option>
+                                <option value="tournament">Sit & Go</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label"><i class="fas fa-coins"></i> Blinds</label>
+                        <div class="select-wrapper">
+                            <select class="select-box" id="tableStakes">
+                                <option value="100">$100 / $200</option>
+                                <option value="500">$500 / $1K</option>
+                                <option value="1000">$1K / $2K</option>
+                                <option value="5000">$5K / $10K</option>
+                                <option value="50000">$50K / $100K</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="toggle-row">
+                    <div class="toggle-label">
+                        <i class="fas fa-lock" style="color:var(--st-danger)"></i> 
+                        <div>
+                            <div>Private Table</div>
+                            <div style="font-size:10px; color:var(--text-dim); font-weight:400;">Requires password to join</div>
+                        </div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="privateCheck" onchange="togglePassField()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="input-group pass-hidden" id="passContainer">
+                    <label class="input-label"><i class="fas fa-key"></i> Access Password</label>
+                    <input type="password" class="input-box" placeholder="Set a strong password">
+                </div>
+
+                <button type="submit" class="btn-submit">Launch Table <i class="fas fa-rocket"></i></button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // ==================== SOCKET.IO INIT ====================
+        // IMPORTANT: Folosim calea relativă pentru a trece prin Nginx (localhost/socket.io)
+        const socket = io({ 
+            transports: ['websocket', 'polling'], 
+            path: '/socket.io' 
+        });
+
+        let currentUser = null;
+        let tablesData = []; // Va fi populat de la server
+
+        // 1. Încărcare profil din sesiune
+        const storedUser = sessionStorage.getItem('seka_user');
+        if (!storedUser) {
+            window.location.href = 'index.html'; // Redirect la login daca nu e logat
+        } else {
+            currentUser = JSON.parse(storedUser);
+            document.getElementById('user-name').innerText = currentUser.username;
+            document.getElementById('user-avatar-text').innerText = currentUser.username.charAt(0).toUpperCase();
+            document.getElementById('user-balance').innerText = `$${currentUser.chips.toLocaleString()}`;
+            
+            // Cerem datele lobby-ului de la server
+            socket.emit('get_lobby_data');
+        }
+
+        // ==================== 2. SOCKET LISTENERS ====================
+        
+        socket.on('lobby_update', (data) => {
+            tablesData = data; // Actualizăm state-ul local
+            updateStats();
+            renderTables();
+        });
+
+        socket.on('table_created', (newTable) => {
+            tablesData.unshift(newTable);
+            updateStats();
+            renderTables();
+        });
+
+        socket.on('create_success', (data) => {
+            closeModal();
+            // Putem să-l trimitem direct la masă
+            joinTable(data.roomId);
+        });
+
+        socket.on('lobby_update_count', (data) => {
+            // Căutăm masa local și îi actualizăm player count
+            const t = tablesData.find(tbl => tbl.id === data.roomId);
+            if(t) {
+                t.players = data.count;
+                renderTables(); // Re-render rapid
+            }
+        });
+
+        socket.on('msg_error', (msg) => {
+            alert(msg);
+        });
+
+        function updateStats() {
+            document.getElementById('online-tables').innerText = tablesData.length;
+            // Suma jucătorilor (dummy logic, în realitate serverul trimite total online)
+            const totalP = tablesData.reduce((acc, t) => acc + t.players, 0);
+            document.getElementById('online-players').innerText = totalP + 100; // Fake boost pt demo
+        }
+
+        // ==================== 3. DATA & STATE UI ====================
+        
+        let currentFilter = 'all';
+        let searchQuery = '';
+
+        const navTabs = document.querySelectorAll('.nav-item');
+        const pages = document.querySelectorAll('.view-page');
+
+        navTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                navTabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                const targetId = tab.dataset.page + 'Page';
+                pages.forEach(p => {
+                    p.classList.remove('active');
+                    if(p.id === targetId) p.classList.add('active');
+                });
+            });
+        });
+
+        // ==================== 4. TABLE RENDERER ====================
+        function renderTables() {
+            const container = document.getElementById('tablesGrid');
+            const icons = { classic: 'fas fa-chair', turbo: 'fas fa-bolt', tournament: 'fas fa-trophy' };
+            
+            const filtered = tablesData.filter(t => {
+                const tMode = t.mode || 'classic'; 
+                const modeMatch = currentFilter === 'all' || tMode === currentFilter;
+                const searchMatch = t.name.toLowerCase().includes(searchQuery.toLowerCase());
+                return modeMatch && searchMatch;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align:center; padding:60px; color:var(--text-dim); grid-column:1/-1; border:1px dashed var(--glass-border); border-radius:12px;">
+                        <i class="fas fa-search" style="font-size:32px; margin-bottom:16px; opacity:0.5;"></i>
+                        <p>No tables found matching your criteria.</p>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(t => {
+                const tMode = t.mode || 'classic';
+                const tMax = t.maxPlayers || 7;
+                const pct = (t.players / tMax) * 100;
+                const visualBlinds = `$${t.stake} / $${t.stake * 2}`; 
+                
+                return `
+                <div class="hud-card ${tMode}" onclick="joinTable(${t.id})">
+                    
+                    <div class="hc-icon-box">
+                        <i class="${icons[tMode] || 'fas fa-dice'}"></i>
+                    </div>
+                    
+                    <div class="hc-info">
+                        <div class="hc-name">${t.name}</div>
+                        <div class="hc-meta">
+                            ${t.private ? '<span class="tag tag-priv"><i class="fas fa-lock" style="font-size:12px;"></i></span>' : ''}
+                            <span class="tag tag-${tMode === 'tournament' ? 'tourney' : tMode}">${tMode}</span>
+                        </div>
+                    </div>
+
+                    <div class="hc-stats">
+                        <div class="stat-label">
+                            <i class="fas fa-users" style="font-size:10px;"></i> 
+                            <span>${t.players} / ${tMax}</span>
+                        </div>
+                        <div class="prog-track">
+                            <div class="prog-fill" style="width:${pct}%"></div>
+                        </div>
+                    </div>
+
+                    <div class="hc-action">
+                        <div class="money-group">
+                            <span class="mon-val">${visualBlinds}</span>
+                            <span class="mon-lbl">Stakes</span>
+                        </div>
+                        <button class="join-btn-arrow">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function setFilter(mode, btn) {
+            document.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentFilter = mode;
+            renderTables();
+        }
+
+        function handleSearch(val) {
+            searchQuery = val;
+            renderTables();
+        }
+
+        function joinTable(id) {
+            // Salvăm ID-ul în sesiune și redirecționăm
+            sessionStorage.setItem('current_room_id', id);
+            window.location.href = 'game.html';
+        }
+
+        // ==================== 5. MODAL LOGIC ====================
+        const modalOverlay = document.getElementById('createModal');
+        const passContainer = document.getElementById('passContainer');
+
+        function openModal() { modalOverlay.classList.add('visible'); }
+        function closeModal() { modalOverlay.classList.remove('visible'); }
+        
+        function togglePassField() {
+            const isChecked = document.getElementById('privateCheck').checked;
+            if(isChecked) passContainer.classList.add('show');
+            else passContainer.classList.remove('show');
+        }
+
+        modalOverlay.addEventListener('click', (e) => {
+            if(e.target === modalOverlay) closeModal();
+        });
+
+        function handleCreateTable(e) {
+            e.preventDefault();
+            const name = document.getElementById('tableName').value;
+            const mode = document.getElementById('tableMode').value;
+            const stake = document.getElementById('tableStakes').value;
+            
+            if(name && stake) {
+                socket.emit('create_table', {
+                    tableName: name,
+                    stake: parseInt(stake),
+                    ownerId: currentUser.id,
+                });
+            }
+        }
+
+        // ==================== 6. PROMO SLIDER ANIMATION ====================
+        const track = document.getElementById('promoTrack');
+        let slideIndex = 0;
+        
+        setInterval(() => {
+            slideIndex = (slideIndex + 1) % 6;
+            track.style.transform = `translateX(-${slideIndex * 100}%)`;
+        }, 6000); 
+
+        // Keyboard Accessibility
+        document.addEventListener('keydown', (e) => {
+            if(e.key === 'Escape') closeModal();
+        });
+
+    </script>
+</body>
+</html>
